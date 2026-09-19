@@ -1,0 +1,69 @@
+<view class="home">
+  <image class="bg" src="/images/home-bg.jpg" mode="aspectFill" />
+
+  <view class="hud" style="top: {{menuTop}}px;">
+    <view class="status-block">
+      <view class="status-row" style="height: {{menuHeight}}px;">
+        <view class="status" style="height: {{menuHeight}}px; line-height: {{menuHeight}}px;">{{statusText}}</view>
+      </view>
+      <view class="status-remain">剩余 {{statusRemainText}}</view>
+    </view>
+    <view class="tools-row">
+      <view class="album" bindtap="openCards">
+        <view class="album-back"></view>
+        <view class="album-front"></view>
+        <view wx:if="{{hasUnreadCard}}" class="dot"></view>
+      </view>
+      <view class="feed-row">
+        <view class="stocks">
+          <text>粮 {{food}}g</text>
+          <text>水 {{water}}g</text>
+        </view>
+        <view class="feed {{canFeed ? '' : 'is-off'}}" bindtap="onFeed">喂</view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{traveling}}" class="travel-remain">
+    <view class="travel-line-row">
+      <text class="travel-line">它出门了</text>
+      <text class="travel-away">{{awayText}}</text>
+    </view>
+    <text class="travel-time">{{remainText}}</text>
+  </view>
+
+  <block wx:if="{{!traveling && sleeping}}">
+    <image
+      wx:for="{{sleepFrames}}"
+      wx:key="*this"
+      class="cat {{catPlace}} cat-sleep {{item === catSrc ? 'is-show' : 'is-hide'}}"
+      src="{{item}}"
+      mode="aspectFit"
+    />
+  </block>
+  <block wx:elif="{{!traveling && eating}}">
+    <image
+      wx:for="{{eatFrames}}"
+      wx:key="*this"
+      class="cat {{catPlace}} cat-eat {{item === catSrc ? 'is-show' : 'is-hide'}}"
+      src="{{item}}"
+      mode="aspectFit"
+    />
+  </block>
+  <image
+    wx:elif="{{!traveling && catSrc}}"
+    class="cat {{catPlace}}"
+    src="{{catSrc}}"
+    mode="aspectFit"
+  />
+
+  <view class="bowls">
+    <image class="bowl" src="{{waterBowlSrc}}" mode="aspectFit" />
+    <image class="bowl" src="{{foodBowlSrc}}" mode="aspectFit" />
+  </view>
+
+  <view wx:if="{{showWelcome}}" class="welcome" bindtap="dismissWelcome">
+    <image class="welcome-img" src="/images/dialog.png" mode="aspectFit" />
+    <view class="welcome-text">你回来啦</view>
+  </view>
+</view>

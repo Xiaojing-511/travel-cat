@@ -1,0 +1,21 @@
+page {
+  background: #f6f0e6;
+  color: #5a5148;
+  font-family: "PingFang SC", "Hiragino Sans GB", sans-serif;
+}
+
+button {
+  background: initial;
+  padding: 0;
+  margin: 0;
+  line-height: inherit;
+  font-size: inherit;
+}
+
+button:focus {
+  outline: 0;
+}
+
+button::after {
+  border: none;
+}

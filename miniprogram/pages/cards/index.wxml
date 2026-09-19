@@ -1,0 +1,48 @@
+<view class="page">
+  <view wx:if="{{empty}}" class="empty">还没有旅行记忆。</view>
+
+  <view wx:else class="list">
+    <view
+      class="item"
+      wx:for="{{cards}}"
+      wx:key="id"
+      data-id="{{item.id}}"
+      bindtap="openCard"
+    >
+      <view class="item-photo">
+        <image
+          src="{{item.image}}"
+          mode="aspectFill"
+          data-id="{{item.id}}"
+          binderror="onImgError"
+        />
+      </view>
+      <view class="item-body">
+        <view class="item-top">
+          <view class="item-loc">{{item.location}}</view>
+          <view class="item-date">{{item.dateText}}</view>
+        </view>
+        <view class="item-journal">{{item.journal}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{openCard}}" class="mask" catchtouchmove="preventMove" bindtap="closeCard">
+    <view class="postcard" catchtap="preventMove">
+      <image class="postcard-bg" src="/images/card-bg.jpg" mode="aspectFill" />
+      <view class="postcard-inner">
+        <view class="date">{{openCard.detailDateText}}</view>
+        <view class="location">定位：{{openCard.location}}</view>
+        <view class="photo">
+          <image
+            src="{{openCard.image}}"
+            mode="aspectFill"
+            data-id="{{openCard.id}}"
+            binderror="onImgError"
+          />
+        </view>
+        <view class="journal">{{openCard.journal}}</view>
+      </view>
+    </view>
+  </view>
+</view>

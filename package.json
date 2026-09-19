@@ -1,0 +1,22 @@
+{
+  "name": "travel-cat",
+  "version": "1.0.0",
+  "description": "一只猫的旅行：喂养猫，等它出门寄回明信片",
+  "main": "index.js",
+  "scripts": {
+    "test": "node scripts/test-game.js",
+    "after-edit": "node scripts/after-edit.js",
+    "sync-cloud-game": "node scripts/sync-cloud-game.js",
+    "upload-trip-images": "node scripts/upload-trip-images.js",
+    "compress-assets": "node scripts/compress-pack-assets.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "jimp": "^0.16.13"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.4"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "player",
+  "version": "1.0.0",
+  "description": "Travel cat player identity, timeline, and cards",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"No tests\""
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "wx-server-sdk": "~2.4.0"
+  }
+}

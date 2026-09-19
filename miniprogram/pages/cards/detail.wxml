@@ -1,0 +1,11 @@
+<view class="page" wx:if="{{card}}">
+  <image class="bg" src="/images/card-bg.jpg" mode="aspectFill" />
+  <view class="inner">
+    <view class="date">{{card.dateText}}</view>
+    <view class="location">定位：{{card.location}}</view>
+    <view class="photo">
+      <image src="{{card.image}}" mode="aspectFill" binderror="onImgError" />
+    </view>
+    <view class="journal">{{card.journal}}</view>
+  </view>
+</view>

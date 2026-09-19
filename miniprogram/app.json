@@ -1,0 +1,16 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/cards/index"
+  ],
+  "window": {
+    "backgroundColor": "#F6F0E6",
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#F6F0E6",
+    "navigationBarTitleText": "一只猫的旅行",
+    "navigationBarTextStyle": "black"
+  },
+  "sitemapLocation": "sitemap.json",
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents"
+}
