@@ -1,5 +1,9 @@
 <view class="page">
-  <view wx:if="{{empty}}" class="empty">还没有旅行记忆。</view>
+  <view wx:if="{{loading}}" class="loading">
+    <view class="loading-spinner"></view>
+    <view class="loading-text">加载中</view>
+  </view>
+  <view wx:elif="{{empty}}" class="empty">还没有旅行记忆。</view>
 
   <view wx:else class="list">
     <view

@@ -172,6 +172,18 @@ test('sleep frames and wait use dedicated art', () => {
   assert.ok(game.getCatSrc(state).indexOf('wait-') >= 0);
   assert.ok(game.getStatusText(state).indexOf('在等你') >= 0);
   assert.strictEqual(game.viewModel(state, 1).catPlace, 'cat-door');
+  assert.strictEqual(game.viewModel(state, 1).showBag, false);
+});
+
+test('decide shows bag to the left of the door cat', () => {
+  let state = game.applyActivity(game.createState(1), 'decide', 1);
+  const decideVm = game.viewModel(state, 1);
+  assert.strictEqual(decideVm.catPlace, 'cat-door');
+  assert.strictEqual(decideVm.showBag, true);
+  state = game.applyActivity(state, 'wait', 1);
+  assert.strictEqual(game.viewModel(state, 1).showBag, false);
+  state = game.applyActivity(state, 'idle', 1);
+  assert.strictEqual(game.viewModel(state, 1).showBag, false);
 });
 
 test('eat frames loop like sleep', () => {
@@ -364,6 +376,7 @@ test('travel UI shows remaining time and elapsed minutes', () => {
   const vm = game.viewModel(state, 1000);
   assert.strictEqual(vm.traveling, true);
   assert.strictEqual(vm.catSrc, '');
+  assert.strictEqual(vm.showBag, false);
   assert.ok(vm.statusText.indexOf('旅行中') >= 0);
   assert.strictEqual(vm.remainText, '5:00');
   assert.strictEqual(vm.statusRemainText, '5:00');
@@ -691,6 +704,25 @@ test('trip image resolver prefers cloud fileID and falls back to mock', () => {
   assert.strictEqual(
     tripImage.resolveTripImage({ image: '/images/trips/dali-flower-01.png' }),
     '/images/trips/dali-flower-01.png'
+  );
+});
+
+test('view model shows feed hint after bowls empty more than 3 hours', () => {
+  let state = game.createState(1);
+  state = { ...state, food: 0, water: 0, emptySince: 1 };
+  assert.strictEqual(game.viewModel(state, 1).showFeedHint, false);
+  assert.strictEqual(
+    game.viewModel(state, 1 + game.EMPTY_HUNGRY_MS).showFeedHint,
+    false
+  );
+  assert.strictEqual(
+    game.viewModel(state, 1 + game.EMPTY_HUNGRY_MS + 1).showFeedHint,
+    true
+  );
+  state = game.feed(state, 1 + game.EMPTY_HUNGRY_MS + 1);
+  assert.strictEqual(
+    game.viewModel(state, 1 + game.EMPTY_HUNGRY_MS + 1).showFeedHint,
+    false
   );
 });
 

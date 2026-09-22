@@ -28,25 +28,23 @@
 3. 右上角相册能打开，有 4 张带图明信片
 4. 点一张能看到定位、照片和手记
 
-示例数据在 `miniprogram/data/review-cards.js`。照片走云存储 `trips-upload/`，发版前请确认这 4 张 jpg 已上传。
+示例数据在 `miniprogram/data/review-cards.js`。照片走云存储 `travel-cards/`，发版前请确认这 4 张 jpg 已上传。
 
 ## 常用脚本
 
 ```bash
 npm test                 # 游戏规则测试
-npm run after-edit       # 测试 + 打包旅行图 + 同步云函数代码
+npm run sync-cloud-game  # 把 game.js / trips.js 拷进云函数目录
 npm run compress-assets  # 压缩包内图片（主包需小于 2MB）
-npm run upload-trip-images
 ```
 
-改完 `miniprogram/utils/game.js` 或 `miniprogram/data/trips.js` 后跑 `npm run after-edit`，不要手改 `cloudfunctions/player` 里的副本。
+改完 `miniprogram/utils/game.js` 或 `miniprogram/data/trips.js` 后跑 `npm run sync-cloud-game`，不要手改 `cloudfunctions/player` 里的副本。旅行图由 n8n 生成并上传云存储，不必再处理 `miniprogram/images/trips`。
 
 之后在开发者工具里：
 
-1. 有新旅行图时，把 `tmp/trips-upload/` 传到云存储目录 `trips-upload/`
-2. 有 BGM 时，把 `tmp/audio-upload/bgm.mp3` 传到 `audio/bgm.mp3`
-3. 重新上传并部署云函数 `player`
-4. 上传小程序
+1. 有 BGM 时，把 `tmp/audio-upload/bgm.mp3` 传到 `audio/bgm.mp3`
+2. 重新上传并部署云函数 `player`
+3. 上传小程序
 
 ## 资源体积
 

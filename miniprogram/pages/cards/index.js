@@ -23,11 +23,15 @@ function withTripImage(card) {
 Page({
   data: {
     cards: [],
-    empty: true,
+    loading: true,
+    empty: false,
     openCard: null,
   },
 
   async onShow() {
+    if (!this.data.cards.length) {
+      this.setData({ loading: true, empty: false });
+    }
     const cleared = await store.clearUnread();
     const listed = await store.listCards();
     if (cleared.offline || listed.offline) {
@@ -35,6 +39,7 @@ Page({
     }
     const cards = (listed.cards || []).map((card) => withTripImage(card));
     this.setData({
+      loading: false,
       empty: cards.length === 0,
       cards,
     });

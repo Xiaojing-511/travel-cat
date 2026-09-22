@@ -19,7 +19,10 @@
           <text>粮 {{food}}g</text>
           <text>水 {{water}}g</text>
         </view>
-        <view class="feed {{canFeed ? '' : 'is-off'}}" bindtap="onFeed">喂</view>
+        <view class="feed-wrap">
+          <view class="feed {{canFeed ? '' : 'is-off'}}" bindtap="onFeed">喂</view>
+          <view wx:if="{{showFeedHint}}" class="feed-hint">充足的食物会支持小咪去更向往的远方哦～</view>
+        </view>
       </view>
     </view>
   </view>
@@ -54,6 +57,12 @@
     wx:elif="{{!traveling && catSrc}}"
     class="cat {{catPlace}}"
     src="{{catSrc}}"
+    mode="aspectFit"
+  />
+  <image
+    wx:if="{{showBag}}"
+    class="cat-bag"
+    src="/images/bag.png"
     mode="aspectFit"
   />
 

@@ -5,9 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "node scripts/test-game.js",
-    "after-edit": "node scripts/after-edit.js",
     "sync-cloud-game": "node scripts/sync-cloud-game.js",
-    "upload-trip-images": "node scripts/upload-trip-images.js",
     "compress-assets": "node scripts/compress-pack-assets.js"
   },
   "keywords": [],

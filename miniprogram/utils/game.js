@@ -993,12 +993,14 @@ function viewModel(state, now) {
     eatFrames: EAT_FRAMES,
     catSrc: traveling ? "" : getCatSrc(state, now),
     catPlace: door ? "cat-door" : "cat-near",
+    showBag: door && state.activity === "decide",
     foodBowlSrc: getBowlSrc("food", state.food),
     waterBowlSrc: getBowlSrc("water", state.water),
     hasUnreadCard: state.hasUnreadCard,
     remainText: traveling ? formatRemain(left) : "",
     awayText: traveling ? formatAway(state, now) : "",
     statusRemainText: formatRemain(statusRemainMs(state, now)),
+    showFeedHint: emptyTooLong(state, now),
   };
 }
 
@@ -1054,6 +1056,7 @@ module.exports = {
   normalize,
   isReady,
   canFeed,
+  emptyTooLong,
   canDepart,
   atDoor,
   getStatusText,

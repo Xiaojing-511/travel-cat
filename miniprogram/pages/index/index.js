@@ -19,6 +19,7 @@ Page({
     eating: false,
     eatFrames: [],
     catPlace: "cat-near",
+    showBag: false,
     foodBowlSrc: "",
     waterBowlSrc: "",
     hasUnreadCard: false,
@@ -26,6 +27,7 @@ Page({
     awayText: "",
     statusRemainText: "",
     showWelcome: false,
+    showFeedHint: false,
   },
 
   onLoad() {
@@ -54,7 +56,10 @@ Page({
 
   paint(state, now) {
     this.state = state;
-    this.setData(game.viewModel(state, now || clock.approxNow()));
+    const vm = game.viewModel(state, now || clock.approxNow());
+    if (!vm.showFeedHint) this.dismissedFeedHint = false;
+    if (this.dismissedFeedHint) vm.showFeedHint = false;
+    this.setData(vm);
   },
 
   paintCache() {
@@ -163,8 +168,11 @@ Page({
         this.pullSync();
         return;
       }
+      const emptyTooLong = game.emptyTooLong(this.state, now);
+      if (!emptyTooLong) this.dismissedFeedHint = false;
       const patch = {
         statusRemainText: game.formatRemain(game.statusRemainMs(this.state, now)),
+        showFeedHint: emptyTooLong && !this.dismissedFeedHint,
       };
       if (this.state.status === "traveling") {
         patch.remainText = game.formatRemain(game.statusRemainMs(this.state, now));
@@ -188,6 +196,10 @@ Page({
     audio.playClick();
     if (!this.state) return;
     if (this.data.showWelcome) this.dismissWelcome();
+    if (this.data.showFeedHint) {
+      this.dismissedFeedHint = true;
+      this.setData({ showFeedHint: false });
+    }
     const result = await store.feed();
     if (result.offline || result.code === "CANNOT_FEED") {
       if (result.offline) {
