@@ -1,78 +1,372 @@
-<view class="home">
-  <image class="bg" src="/images/home-bg.jpg" mode="aspectFill" />
+<view class="home {{seeking ? 'is-seeking' : ''}}">
+  <view class="base-bg"></view>
+  <view class="nav-bar" style="height: {{navBarHeight}}px;"></view>
+  <view class="world {{scene === 'balcony' ? 'is-balcony' : ''}}">
+    <view
+      class="scene scene-balcony"
+      bindtouchstart="onBalconyTouch"
+      bindtouchmove="onBalconyTouch"
+    >
+      <image class="bg balcony-bg" src="/images/balcony/bg.jpg" mode="widthFix" />
+      <view class="planters">
+        <block wx:for="{{planters}}" wx:key="id">
+          <view
+            class="planter planter-{{item.id}}"
+            data-id="{{item.id}}"
+            id="planter-{{item.id}}"
+          >
+            <image
+              class="planter-stage {{item.stage === 0 ? 'is-show' : 'is-hide'}}"
+              src="/images/balcony/planter/00.png"
+              mode="scaleToFill"
+            />
+            <image
+              class="planter-stage {{item.stage === 1 ? 'is-show' : 'is-hide'}}"
+              src="/images/balcony/planter/01.png"
+              mode="scaleToFill"
+            />
+            <image
+              class="planter-stage {{item.stage === 2 ? 'is-show' : 'is-hide'}}"
+              src="/images/balcony/planter/02.png"
+              mode="scaleToFill"
+            />
+            <image
+              class="planter-stage {{item.stage === 3 ? 'is-show' : 'is-hide'}}"
+              src="/images/balcony/planter/03.png"
+              mode="scaleToFill"
+            />
+          </view>
+          <image
+            wx:if="{{item.hint}}"
+            class="planter-hint planter-hint-{{item.id}}"
+            src="/images/balcony/leaf-gold.png"
+            mode="aspectFit"
+          />
+        </block>
+        <view
+          wx:for="{{bursts}}"
+          wx:key="id"
+          class="planter-burst planter-burst-{{item.id}}"
+        >
+          <image
+            wx:for="{{popLeaves}}"
+            wx:for-item="leaf"
+            wx:key="id"
+            class="planter-pop"
+            style="left: {{leaf.dx}}rpx; bottom: {{leaf.lift}}rpx;"
+            src="/images/balcony/leaf.png"
+            mode="aspectFit"
+          />
+        </view>
+      </view>
+      <image
+        class="scene-logo is-right"
+        src="/images/balcony/right.jpg"
+        mode="aspectFit"
+        bindtap="switchScene"
+      />
+    </view>
+    <view class="scene scene-living">
+      <image class="bg" src="/images/home-bg.jpg" mode="widthFix" />
+      <image
+        class="scene-logo is-left"
+        src="/images/balcony/left.jpg"
+        mode="aspectFit"
+        bindtap="switchScene"
+      />
+
+      <view wx:if="{{traveling}}" class="travel-remain guide-cat">
+        <view class="travel-line-row">
+          <text class="travel-line">{{travelOutText}}</text>
+          <text class="travel-away">{{awayText}}</text>
+        </view>
+        <!-- <text class="travel-time">{{remainText}}</text> -->
+      </view>
+
+      <view
+        wx:if="{{!traveling && (catSrc || sleeping)}}"
+        class="cat guide-cat guide-cat-hit {{catPlace}} {{sleeping ? 'cat-sleep' : ''}} {{eating ? 'cat-meal' : ''}} cat-{{meal}}"
+      ></view>
+
+      <block wx:if="{{!traveling && sleeping}}">
+        <image
+          wx:for="{{sleepFrames}}"
+          wx:key="*this"
+          class="cat {{catPlace}} cat-sleep {{item === catSrc ? 'is-show' : 'is-hide'}}"
+          src="{{item}}"
+          mode="aspectFit"
+        />
+      </block>
+      <block wx:elif="{{!traveling && eating}}">
+        <image
+          wx:for="{{eatFrames}}"
+          wx:key="*this"
+          class="cat {{catPlace}} cat-meal cat-{{meal}} {{item === catSrc ? 'is-show' : 'is-hide'}}"
+          src="{{item}}"
+          mode="aspectFit"
+        />
+      </block>
+      <block wx:elif="{{!traveling && idling}}">
+        <image
+          wx:for="{{idleFrames}}"
+          wx:key="*this"
+          class="cat {{catPlace}} {{item === catSrc ? 'is-show' : 'is-hide'}}"
+          src="{{item}}"
+          mode="aspectFit"
+        />
+      </block>
+      <block wx:elif="{{!traveling && catSrc}}">
+        <image
+          wx:for="{{catPoseKey}}"
+          wx:key="*this"
+          class="cat {{catPlace}}"
+          src="{{item}}"
+          mode="aspectFit"
+        />
+      </block>
+      <image
+        wx:if="{{showBag}}"
+        class="cat-bag"
+        src="/images/bag.png"
+        mode="aspectFit"
+      />
+
+      <view class="bowls">
+        <image wx:if="{{waterBowlSrc}}" class="bowl" src="{{waterBowlSrc}}" mode="aspectFit" />
+        <image wx:if="{{foodBowlSrc}}" class="bowl" src="{{foodBowlSrc}}" mode="aspectFit" />
+      </view>
+
+      <view wx:if="{{showWelcome}}" class="welcome" bindtap="dismissWelcome">
+        <image class="welcome-img" src="/images/dialog.png" mode="aspectFit" />
+        <view class="welcome-text">你回来啦</view>
+      </view>
+    </view>
+  </view>
 
   <view class="hud" style="top: {{menuTop}}px;">
     <view class="status-block">
       <view class="status-row" style="height: {{menuHeight}}px;">
-        <view class="status" style="height: {{menuHeight}}px; line-height: {{menuHeight}}px;">{{statusText}}</view>
+        <view
+          class="status"
+          style="height: {{menuHeight}}px; line-height: {{menuHeight}}px;"
+          bindlongpress="toggleDebug"
+        >{{statusText}}</view>
       </view>
-      <view class="status-remain">剩余 {{statusRemainText}}</view>
+      <!-- <view class="status-remain">剩余 {{statusRemainText}}</view> -->
     </view>
-    <view class="tools-row">
-      <view class="album" bindtap="openCards">
-        <view class="album-back"></view>
-        <view class="album-front"></view>
-        <view wx:if="{{hasUnreadCard}}" class="dot"></view>
-      </view>
-      <view class="feed-row">
-        <view class="stocks">
-          <text>粮 {{food}}g</text>
-          <text>水 {{water}}g</text>
+    <view class="sides">
+      <view class="side-left">
+        <view class="service-wrap">
+          <image class="service-logo" src="/images/service.png" mode="aspectFit" />
+          <button
+            wx:if="{{!showGuide}}"
+            class="service-hit"
+            hover-class="none"
+            open-type="contact"
+            bindtap="onService"
+          ></button>
         </view>
-        <view class="feed-wrap">
-          <view class="feed {{canFeed ? '' : 'is-off'}}" bindtap="onFeed">喂</view>
-          <view wx:if="{{showFeedHint}}" class="feed-hint">充足的食物会支持小咪去更向往的远方哦～</view>
+        <view class="leaf-bar" hover-class="leaf-bar-hover" bindtap="openLeaves">
+          <image class="leaf-logo" src="/images/balcony/leaf.png" mode="aspectFit" />
+          <view class="leaf-meta">
+            <view class="leaf-count">{{leafCount}}</view>
+            <view class="leaf-plus">+</view>
+          </view>
+        </view>
+
+        <!-- <view class="help-wrap" hover-class="help-hover" bindtap="onHelp">
+          <view class="help-logo">帮助</view>
+        </view> -->
+      </view>
+      <view class="tools-row">
+        <view class="sound" hover-class="sound-hover" bindtap="toggleBgm">
+          <image
+            class="sound-logo"
+            src="{{bgmOn ? '/images/sound-on.png' : '/images/sound-off.png'}}"
+            mode="aspectFit"
+          />
+        </view>
+        <view class="identity" hover-class="identity-hover" bindtap="openIdentity">
+          <image class="identity-logo" src="/images/cat-id.png" mode="aspectFit" />
+        </view>
+
+        <view class="feed-row">
+          <view class="stocks">
+            <text>粮 {{food}}g</text>
+            <text>水 {{water}}g</text>
+          </view>
+          <view class="feed-col">
+            <view class="feed-anchor">
+              <view class="feed guide-feed {{canFeed ? '' : 'is-off'}}" bindtap="onFeed">喂</view>
+              <view wx:if="{{showFeedHint}}" class="feed-hint">为小咪补充出发需要的补给吧～帮助它带回更多远方的记忆～</view>
+            </view>
+          </view>
+        </view>
+        <view class="album guide-album" bindtap="openCards">
+          <view class="album-back"></view>
+          <view class="album-front"></view>
+          <view wx:if="{{hasUnreadCard}}" class="dot"></view>
         </view>
       </view>
     </view>
   </view>
 
-  <view wx:if="{{traveling}}" class="travel-remain">
-    <view class="travel-line-row">
-      <text class="travel-line">它出门了</text>
-      <text class="travel-away">{{awayText}}</text>
+  <view class="scene-mask {{sceneDark ? 'is-on' : ''}} {{sceneBusy ? 'is-busy' : ''}}"></view>
+
+  <view wx:if="{{showLeaves}}" class="identity-mask" bindtap="closeLeaves">
+    <view class="identity-card leaf-card" catchtap="stopTap">
+      <view class="identity-head">
+        <text class="identity-title">更多薄荷叶</text>
+        <view class="identity-close" bindtap="closeLeaves">×</view>
+      </view>
+
+      <view>
+        <text class="detail identity-title">敬请期待...</text></view>
     </view>
-    <text class="travel-time">{{remainText}}</text>
   </view>
 
-  <block wx:if="{{!traveling && sleeping}}">
-    <image
-      wx:for="{{sleepFrames}}"
-      wx:key="*this"
-      class="cat {{catPlace}} cat-sleep {{item === catSrc ? 'is-show' : 'is-hide'}}"
-      src="{{item}}"
-      mode="aspectFit"
-    />
-  </block>
-  <block wx:elif="{{!traveling && eating}}">
-    <image
-      wx:for="{{eatFrames}}"
-      wx:key="*this"
-      class="cat {{catPlace}} cat-eat {{item === catSrc ? 'is-show' : 'is-hide'}}"
-      src="{{item}}"
-      mode="aspectFit"
-    />
-  </block>
-  <image
-    wx:elif="{{!traveling && catSrc}}"
-    class="cat {{catPlace}}"
-    src="{{catSrc}}"
-    mode="aspectFit"
-  />
-  <image
-    wx:if="{{showBag}}"
-    class="cat-bag"
-    src="/images/bag.png"
-    mode="aspectFit"
-  />
+  <view wx:if="{{showIdentity}}" class="identity-mask" bindtap="closeIdentity">
+    <view class="identity-card" catchtap="stopTap">
+      <view class="identity-head">
+        <text class="identity-title">咪的信息</text>
+        <view class="identity-close" bindtap="closeIdentity">×</view>
+      </view>
 
-  <view class="bowls">
-    <image class="bowl" src="{{waterBowlSrc}}" mode="aspectFit" />
-    <image class="bowl" src="{{foodBowlSrc}}" mode="aspectFit" />
+      <view class="identity-field">
+        <text class="identity-label">昵称</text>
+        <view class="identity-line">
+          <input
+            class="identity-input"
+            value="{{nicknameDraft}}"
+            maxlength="10"
+            placeholder="小咪"
+            placeholder-class="identity-placeholder"
+            confirm-type="done"
+            cursor-spacing="80"
+            bindinput="onNicknameInput"
+            bindblur="onNicknameBlur"
+            bindconfirm="saveNickname"
+          />
+          <view
+            class="identity-save {{nicknameSaving ? 'is-busy' : ''}}"
+            catchtap="saveNickname"
+          >{{nicknameSaving ? '保存中' : '保存'}}</view>
+        </view>
+        <text class="identity-note">最多 10 个字</text>
+      </view>
+
+      <view class="identity-field">
+        <text class="identity-label">品种</text>
+        <view class="identity-line">
+          <view class="identity-picker">
+            <view
+              class="identity-select {{breedLocked ? 'is-locked' : ''}}"
+              catchtap="toggleBreed"
+            >
+              <text>{{breedNames[breedIndex]}}</text>
+              <view wx:if="{{!breedLocked}}" class="identity-chevron {{breedOpen ? 'is-open' : ''}}"></view>
+            </view>
+            <view wx:if="{{breedOpen && !breedLocked}}" class="breed-menu">
+              <view
+                wx:for="{{breedNames}}"
+                wx:key="*this"
+                class="breed-option {{index === breedIndex ? 'is-on' : ''}}"
+                data-index="{{index}}"
+                catchtap="pickBreed"
+              >{{item}}</view>
+            </view>
+          </view>
+          <view
+            wx:if="{{!breedLocked}}"
+            class="identity-save {{breedSaving ? 'is-busy' : ''}}"
+            bindtap="saveBreed"
+          >{{breedSaving ? '保存中' : '保存'}}</view>
+        </view>
+        <text class="identity-hint {{breedLocked ? 'is-locked' : ''}}">{{breedLocked ? '已选定，不能再修改' : '只能选择一次，保存后无法再次修改'}}</text>
+        <image
+          class="identity-stand"
+          src="{{breedStands[breedIndex]}}"
+          mode="aspectFit"
+        />
+        <view class="identity-more">
+          <text>其他品种加紧生产中... 如有定制需求请 </text><button
+            class="identity-contact"
+            hover-class="none"
+            open-type="contact"
+            bindtap="onService"
+          >联系客服</button><text>～</text>
+        </view>
+      </view>
+
+      <view class="identity-debug">
+        <view class="identity-info"></view>
+        <view
+          class="identity-debug-copy"
+          hover-class="identity-debug-copy-hover"
+          catchtap="copyUserId"
+        >用户编号</view>
+      </view>
+    </view>
   </view>
 
-  <view wx:if="{{showWelcome}}" class="welcome" bindtap="dismissWelcome">
-    <image class="welcome-img" src="/images/dialog.png" mode="aspectFit" />
-    <view class="welcome-text">你回来啦</view>
+  <view wx:if="{{showDebug && !showGuide}}" class="debug-dock">
+    <view class="debug-toggle" hover-class="debug-toggle-hover" catchtap="toggleDebug">{{debugOpen ? '收起' : '调试'}}</view>
+    <view wx:if="{{debugOpen}}" class="debug-panel">
+      <text class="debug-note">只改当前画面，不写入存档。看完点「恢复存档」。</text>
+      <view class="debug-grid">
+        <view
+          wx:for="{{debugBreeds}}"
+          wx:key="id"
+          class="debug-chip {{shownBreed === item.id ? 'is-on' : ''}}"
+          data-id="{{item.id}}"
+          catchtap="applyDebugBreed"
+        >{{item.name}}</view>
+      </view>
+      <view class="debug-grid">
+        <view
+          wx:for="{{debugPoses}}"
+          wx:key="id"
+          class="debug-chip {{debugPoseId === item.id ? 'is-on' : ''}}"
+          data-id="{{item.id}}"
+          catchtap="applyDebugPose"
+        >{{item.label}}</view>
+      </view>
+      <view class="debug-grid">
+        <view class="debug-chip {{debugPoseId === 'bowls-0' ? 'is-on' : ''}}" data-grams="0" catchtap="applyDebugBowls">空碗</view>
+        <view class="debug-chip {{debugPoseId === 'bowls-20' ? 'is-on' : ''}}" data-grams="20" catchtap="applyDebugBowls">半碗</view>
+        <view class="debug-chip {{debugPoseId === 'bowls-50' ? 'is-on' : ''}}" data-grams="50" catchtap="applyDebugBowls">满碗</view>
+        <view class="debug-chip debug-chip-back" catchtap="clearDebugPose">恢复存档</view>
+      </view>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{showGuide}}"
+    class="guide {{guideReady ? 'is-ready' : ''}}"
+    bindtap="onGuideNext"
+  >
+    <view wx:if="{{guideReady}}" class="guide-hole" style="{{guideHoleStyle}}"></view>
+    <view wx:if="{{guideReady}}" class="guide-tip" style="{{guideTipStyle}}">
+      <text wx:for="{{guideLines}}" wx:key="*this" class="guide-line">{{item}}</text>
+    </view>
+    <view
+      class="guide-skip"
+      style="top: {{skipTop}}px; right: {{menuRightPad}}px;"
+      catchtap="onGuideSkip"
+    >跳过</view>
+  </view>
+
+  <view wx:if="{{showLeafShort}}" class="leaf-short">
+    <view class="leaf-short-card" bindtap="dismissLeafShort">
+      <view class="leaf-short-line">
+        <image class="leaf-short-logo" src="/images/balcony/leaf.png" mode="aspectFit" />
+        <text>{{leafShortText}}</text>
+      </view>
+      <text wx:if="{{leafShortSub}}" class="leaf-short-sub">{{leafShortSub}}</text>
+    </view>
+  </view>
+
+  <view wx:if="{{seeking}}" class="seek-mask" catchtap="stopTap" catchtouchmove="stopTap">
+    <text class="seek-text">疯狂寻找小咪中...</text>
   </view>
 </view>

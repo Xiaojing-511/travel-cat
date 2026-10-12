@@ -6,27 +6,32 @@ const DAY_MS = 24 * HOUR_MS;
 
 const PORTION_G = 10;
 const FEED_CAP_G = 50;
+const FEED_LEAF_COST = 20;
+const MID_SUPPLY_G = 20;
+const HIGH_SUPPLY_G = 30;
 const MEAL_CHANCE = 1 / 3;
 const TRAVEL_CHANCE = 2 / 3;
+const JOURNAL_BRING_DIVISOR = 3;
+const FORGOT_KIND = "forgot";
 const MEAL_CONSUME_MIN_G = 5;
 const MEAL_CONSUME_MAX_G = 10;
 
-const SLEEP_MIN_MS = 5 * MINUTE_MS;
-const SLEEP_MAX_MS = 30 * MINUTE_MS;
+const SLEEP_MIN_MS = 20 * MINUTE_MS;
+const SLEEP_MAX_MS = 5 * HOUR_MS;
 const IDLE_MIN_MS = 2 * MINUTE_MS;
 const IDLE_MAX_MS = 10 * MINUTE_MS;
 const IDLE_ART_MIN_MS = 5 * MINUTE_MS;
 const IDLE_ART_MAX_MS = 8 * MINUTE_MS;
-const WAIT_MIN_MS = 10 * MINUTE_MS;
-const WAIT_MAX_MS = 30 * MINUTE_MS;
+const WAIT_MIN_MS = 8 * MINUTE_MS;
+const WAIT_MAX_MS = 4 * HOUR_MS;
 const DECIDE_MIN_MS = 12 * 1000;
 const DECIDE_MAX_MS = 25 * 1000;
 const HUNGRY_MIN_MS = 10 * MINUTE_MS;
 const HUNGRY_MAX_MS = 3 * HOUR_MS;
-const EAT_MIN_MS = 2 * MINUTE_MS;
-const EAT_MAX_MS = 5 * MINUTE_MS;
+const EAT_MIN_MS = 5 * MINUTE_MS;
+const EAT_MAX_MS = 15 * MINUTE_MS;
 const DRINK_MIN_MS = 1 * MINUTE_MS;
-const DRINK_MAX_MS = 3 * MINUTE_MS;
+const DRINK_MAX_MS = 5 * MINUTE_MS;
 
 const DRINK_CHECK_MIN_MS = 2 * HOUR_MS;
 const DRINK_CHECK_MAX_MS = 3 * HOUR_MS;
@@ -39,12 +44,21 @@ const RELIEF_MEAL_AMOUNTS = [5, 10];
 
 const TRAVEL_MAX_MS = 48 * HOUR_MS;
 const LOW_TRAVEL_MIN_MS = 30 * MINUTE_MS;
-const LOW_TRAVEL_MAX_MS = 6 * HOUR_MS;
+const LOW_TRAVEL_MAX_MS = 7 * HOUR_MS;
 const MID_TRAVEL_MIN_MS = 1 * HOUR_MS;
 const MID_TRAVEL_MAX_MS = 12 * HOUR_MS;
-const HIGH_TRAVEL_MIN_MS = 2 * HOUR_MS;
+const HIGH_TRAVEL_MIN_MS = 3 * HOUR_MS;
 const HIGH_TRAVEL_MAX_MS = 24 * HOUR_MS;
 const LEGACY_TRAVEL_DURATION_MS = 5 * MINUTE_MS;
+
+const PLANTER_COUNT = 3;
+const LEAF_BATCH = 10;
+const LEAF_CAP = 30;
+const GROW_MIN_MS = 10 * MINUTE_MS;
+const GROW_MAX_MS = 4 * HOUR_MS;
+const GROW_CATCHUP_GUARD = 200000;
+// 生长间隔改成 10 分钟～4 小时后，旧存档的已摘叶子只清零一次。
+const LEAF_STOCK_EPOCH = 1;
 
 const ACTIVITIES = [
   "sleep",
@@ -57,27 +71,98 @@ const ACTIVITIES = [
 ];
 const HOME_ONLINE_ROTATION = ["sleep", "idle", "decide"];
 const HOME_OFFLINE_ROTATION = ["sleep", "idle", "wait", "decide"];
-const SLEEP_FRAMES = [
-  "/images/cat/sleep/001.png",
-  "/images/cat/sleep/002.png",
-  "/images/cat/sleep/003.png",
+const SLEEP_NAMES = ["sleep/001", "sleep/002", "sleep/003"];
+const EAT_NAMES = ["eat/001", "eat/002"];
+const IDLE_FRAME_NAMES = ["idle/001", "idle/002"];
+const IDLE_NAMES = ["idle/001"];
+const DEFAULT_NICKNAME = "小咪";
+const NICKNAME_MAX = 10;
+// 新增品种只加一条。姿势图放进 spriteDir，文件名与美短相同，扩展名跟磁盘一致。
+// 睡觉帧不同时再写 sleepNames / sleepSequence。默认三帧来回：001-002-003-002。
+// 旅行逻辑共用，只把云存储目录换成 cardFolder，文件名与 travel-cards 相同。
+const BREEDS = [
+  {
+    id: "american",
+    name: "美短",
+    spriteDir: "/images/cat",
+    spriteExt: "png",
+    cardFolder: "travel-cards",
+  },
+  {
+    id: "blue-golden",
+    name: "蓝金渐层",
+    spriteDir: "/images/cat-lanji",
+    spriteExt: "png",
+    cardFolder: "travel-cards-lanjin",
+  },
 ];
-const EAT_FRAMES = [
-  "/images/cat/eat/001.png",
-  "/images/cat/eat/002.png",
-  "/images/cat/eat/003.png",
-];
-const IDLE_ARTS = [
-  "/images/cat/lie-1.png",
-  "/images/cat/lie-2.png",
-  "/images/cat/lie-bag.png",
-  "/images/cat/stand-bag.png",
-  "/images/cat/stand.png",
-];
+
+function breedSpec(id) {
+  const key = String(id == null ? "" : id);
+  for (let i = 0; i < BREEDS.length; i++) {
+    if (BREEDS[i].id === key) return BREEDS[i];
+  }
+  return BREEDS[0];
+}
+
+function spriteSrc(breedId, name) {
+  const spec = breedSpec(breedId);
+  return spec.spriteDir + "/" + name + "." + spec.spriteExt;
+}
+
+function spriteList(breedId, names) {
+  const list = [];
+  for (let i = 0; i < names.length; i++) {
+    list.push(spriteSrc(breedId, names[i]));
+  }
+  return list;
+}
+
+function sleepNamesOf(breedId) {
+  const names = breedSpec(breedId).sleepNames;
+  return names && names.length ? names : SLEEP_NAMES;
+}
+
+function sleepSequenceOf(breedId) {
+  const sequence = breedSpec(breedId).sleepSequence;
+  return sequence && sequence.length ? sequence : SLEEP_SEQUENCE;
+}
+
+function cardFolders() {
+  const folders = [];
+  for (let i = 0; i < BREEDS.length; i++) {
+    if (BREEDS[i].cardFolder) folders.push(BREEDS[i].cardFolder);
+  }
+  folders.sort((a, b) => b.length - a.length);
+  return folders;
+}
+
+function cardImageFileID(fileID, breedId) {
+  const value = String(fileID || "");
+  if (value.indexOf("cloud://") !== 0) return value;
+  const folder = breedSpec(breedId).cardFolder;
+  if (!folder) return value;
+  const folders = cardFolders();
+  for (let i = 0; i < folders.length; i++) {
+    const token = "/" + folders[i] + "/";
+    const at = value.indexOf(token);
+    if (at < 0) continue;
+    return (
+      value.slice(0, at) + "/" + folder + "/" + value.slice(at + token.length)
+    );
+  }
+  return value;
+}
+
+const SLEEP_FRAMES = spriteList("", SLEEP_NAMES);
+const EAT_SRC = spriteSrc("", "eat/001");
+const IDLE_ARTS = spriteList("", IDLE_NAMES);
 const SLEEP_FRAME_MS = 1000;
 const SLEEP_SEQUENCE = [0, 1, 2, 1];
 const EAT_FRAME_MS = 1000;
-const EAT_SEQUENCE = [0, 1, 2, 1];
+const EAT_SEQUENCE = [0, 1];
+const IDLE_FRAME_MS = 1700;
+const IDLE_SEQUENCE = [0, 1];
 const TICK_GUARD = 8000;
 const EVENT_PRIORITY = {
   travelCheck: 0,
@@ -99,6 +184,217 @@ function rand() {
 
 function randInt(min, max) {
   return min + Math.floor(rand() * (max - min + 1));
+}
+
+function growDelay() {
+  return randInt(GROW_MIN_MS, GROW_MAX_MS);
+}
+
+function blankPlanters() {
+  const planters = [];
+  for (let id = 1; id <= PLANTER_COUNT; id++) {
+    planters.push({ id, leaves: 0, nextGrowAt: 0, hint: false });
+  }
+  return planters;
+}
+
+function planterStage(leaves) {
+  const n = Number(leaves) || 0;
+  if (n >= 30) return 3;
+  if (n >= 20) return 2;
+  if (n >= 10) return 1;
+  return 0;
+}
+
+function planterArt(leaves) {
+  return "/images/balcony/planter/0" + planterStage(leaves) + ".png";
+}
+
+function clampLeaves(value) {
+  const n = Math.max(0, Math.floor(Number(value) || 0));
+  return n > LEAF_CAP ? LEAF_CAP : n;
+}
+
+function normalizePlanters(raw, now) {
+  const t = Number(now) || 0;
+  const list = Array.isArray(raw) ? raw : [];
+  const byId = {};
+  for (let i = 0; i < list.length; i++) {
+    const id = Number(list[i] && list[i].id);
+    if (id >= 1 && id <= PLANTER_COUNT) byId[id] = list[i];
+  }
+  const planters = [];
+  for (let id = 1; id <= PLANTER_COUNT; id++) {
+    const item = byId[id];
+    const leaves = clampLeaves(item && item.leaves);
+    let nextGrowAt = Number(item && item.nextGrowAt) || 0;
+    if (!(nextGrowAt > 0)) nextGrowAt = t + growDelay();
+    planters.push({
+      id,
+      leaves,
+      nextGrowAt,
+      hint: leaves >= LEAF_BATCH,
+    });
+  }
+  return planters;
+}
+
+function growPlanters(state, now) {
+  const t = Number(now) || 0;
+  const existing = Array.isArray(state && state.planters) ? state.planters : [];
+  const byId = {};
+  for (let i = 0; i < existing.length; i++) {
+    const id = Number(existing[i] && existing[i].id);
+    if (id >= 1 && id <= PLANTER_COUNT) byId[id] = existing[i];
+  }
+  const planters = [];
+  let changed = existing.length !== PLANTER_COUNT;
+  for (let id = 1; id <= PLANTER_COUNT; id++) {
+    const item = byId[id];
+    let leaves = clampLeaves(item && item.leaves);
+    let nextGrowAt = Number(item && item.nextGrowAt) || 0;
+    let hint = leaves >= LEAF_BATCH;
+    if (item && Number(item.leaves) !== leaves) changed = true;
+    if (!(nextGrowAt > 0)) {
+      nextGrowAt = t + growDelay();
+      changed = true;
+    } else if (leaves >= LEAF_CAP) {
+      if (nextGrowAt <= t) {
+        nextGrowAt = t + growDelay();
+        changed = true;
+      }
+    } else {
+      let guard = 0;
+      while (nextGrowAt <= t && leaves < LEAF_CAP && guard < GROW_CATCHUP_GUARD) {
+        leaves = Math.min(LEAF_CAP, leaves + LEAF_BATCH);
+        hint = leaves >= LEAF_BATCH;
+        nextGrowAt += growDelay();
+        changed = true;
+        guard += 1;
+      }
+      if (leaves >= LEAF_CAP && nextGrowAt <= t) {
+        nextGrowAt = t + growDelay();
+        changed = true;
+      }
+    }
+    if (
+      !item ||
+      Number(item.leaves) !== leaves ||
+      Number(item.nextGrowAt) !== nextGrowAt ||
+      !!item.hint !== hint
+    ) {
+      changed = true;
+    }
+    planters.push({ id, leaves, nextGrowAt, hint });
+  }
+  if (!changed) return state;
+  return { ...state, planters };
+}
+
+function harvestPlanter(state, planterId, now, seenLeaves) {
+  const id = Number(planterId);
+  if (!(id >= 1 && id <= PLANTER_COUNT)) return null;
+  const planters = (
+    Array.isArray(state && state.planters) ? state.planters : []
+  ).map((item) => ({
+    id: Number(item.id),
+    leaves: clampLeaves(item.leaves),
+    nextGrowAt: Number(item.nextGrowAt) || 0,
+    hint: !!item.hint,
+  }));
+  const pot = planters.find((item) => item.id === id);
+  if (!pot || pot.leaves < LEAF_BATCH) return null;
+  // 点下去时屏幕上的叶子。同一次请求里刚追赶出来的生长不计入这一把。
+  let base = pot.leaves;
+  if (seenLeaves != null && seenLeaves !== "") {
+    const seen = clampLeaves(seenLeaves);
+    if (seen < base) base = seen;
+  }
+  if (base < LEAF_BATCH) return null;
+  pot.leaves = base - LEAF_BATCH;
+  pot.hint = pot.leaves >= LEAF_BATCH;
+  const t = Number(now);
+  if (Number.isFinite(t) && t > 0 && !(pot.nextGrowAt > t)) {
+    pot.nextGrowAt = t + growDelay();
+  }
+  return {
+    ...state,
+    planters,
+    leafCount:
+      Math.max(0, Math.floor(Number(state.leafCount) || 0)) + LEAF_BATCH,
+  };
+}
+
+function commitHarvest(ticked, harvested, planterId, now) {
+  const id = Number(planterId);
+  const taken = (
+    Array.isArray(harvested && harvested.planters) ? harvested.planters : []
+  ).find((item) => Number(item.id) === id);
+  if (!taken) return ticked;
+  const t = Number(now) || 0;
+  const leaves = clampLeaves(taken.leaves);
+  const planters = (
+    Array.isArray(ticked && ticked.planters) ? ticked.planters : []
+  ).map((item) => {
+    if (Number(item.id) !== id) return item;
+    const rolled = Number(item.nextGrowAt) || 0;
+    const kept = Number(taken.nextGrowAt) || 0;
+    return {
+      id,
+      leaves,
+      nextGrowAt: rolled > t ? rolled : kept,
+      hint: leaves >= LEAF_BATCH,
+    };
+  });
+  return {
+    ...ticked,
+    planters,
+    leafCount:
+      Math.max(0, Math.floor(Number(ticked.leafCount) || 0)) + LEAF_BATCH,
+  };
+}
+
+function viewPlanters(planters) {
+  const list = Array.isArray(planters) ? planters : [];
+  const byId = {};
+  for (let i = 0; i < list.length; i++) {
+    const id = Number(list[i] && list[i].id);
+    if (id >= 1 && id <= PLANTER_COUNT) byId[id] = list[i];
+  }
+  const out = [];
+  for (let id = 1; id <= PLANTER_COUNT; id++) {
+    const item = byId[id] || {};
+    const leaves = clampLeaves(item.leaves);
+    out.push({
+      id,
+      leaves,
+      hint: leaves >= LEAF_BATCH,
+      stage: planterStage(leaves),
+      src: planterArt(leaves),
+    });
+  }
+  return out;
+}
+
+function plantersForDoc(planters) {
+  const list = Array.isArray(planters) ? planters : [];
+  const byId = {};
+  for (let i = 0; i < list.length; i++) {
+    const id = Number(list[i] && list[i].id);
+    if (id >= 1 && id <= PLANTER_COUNT) byId[id] = list[i];
+  }
+  const out = [];
+  for (let id = 1; id <= PLANTER_COUNT; id++) {
+    const item = byId[id] || {};
+    const leaves = clampLeaves(item.leaves);
+    out.push({
+      id,
+      leaves,
+      nextGrowAt: Number(item.nextGrowAt) || 0,
+      hint: leaves >= LEAF_BATCH,
+    });
+  }
+  return out;
 }
 
 function durationOf(activity) {
@@ -127,20 +423,26 @@ function idleArtDuration() {
   return randInt(IDLE_ART_MIN_MS, IDLE_ART_MAX_MS);
 }
 
+function standArtIndex() {
+  const i = IDLE_ARTS.indexOf("/images/cat/stand.png");
+  return i >= 0 ? i : 0;
+}
+
 function migrateIdleArt(raw) {
   const n = Number(raw && raw.idleArt);
   if (Number.isFinite(n)) {
     const i = Math.floor(n);
     if (i >= 0 && i < IDLE_ARTS.length) return i;
   }
-  if (raw && raw.idleKind === "stand") return 4;
-  if (raw && Number(raw.poseVariant) === 1) return 1;
+  if (raw && raw.idleKind === "stand") return standArtIndex();
+  if (raw && Number(raw.poseVariant) === 1 && IDLE_ARTS.length > 1) return 1;
   return 0;
 }
 
 function applyActivity(state, activity, now, durationMs) {
   const ms = durationMs == null ? durationOf(activity) : durationMs;
   const idle = activity === "idle";
+  const meal = activity === "eat" || activity === "drink";
   return {
     ...state,
     activity,
@@ -149,7 +451,11 @@ function applyActivity(state, activity, now, durationMs) {
     poseVariant: Math.floor(rand() * 2),
     idleKind: rand() < 0.5 ? "stand" : "lie",
     idleArt: idle ? pickIdleArt() : migrateIdleArt(state),
-    nextIdleArtAt: idle ? now + idleArtDuration() : 0,
+    nextIdleArtAt: idle && IDLE_ARTS.length > 1 ? now + idleArtDuration() : 0,
+    mealTotal: meal ? Math.max(0, Math.floor(Number(state.mealTotal) || 0)) : 0,
+    mealApplied: meal
+      ? Math.max(0, Math.floor(Number(state.mealApplied) || 0))
+      : 0,
   };
 }
 
@@ -157,6 +463,7 @@ function maybeSwitchIdleArt(state, now) {
   if (state.status === "traveling" || state.activity !== "idle") {
     return state;
   }
+  if (IDLE_ARTS.length <= 1) return state;
   const due = Number(state.nextIdleArtAt) || 0;
   if (!(due > 0)) {
     return { ...state, nextIdleArtAt: now + idleArtDuration() };
@@ -237,6 +544,135 @@ function rescheduleTravelCheck(state, at) {
   };
 }
 
+function charCount(text) {
+  return Array.from(text).length;
+}
+
+function sanitizeNickname(raw) {
+  if (typeof raw !== "string") return "";
+  const text = raw.trim();
+  if (!text || charCount(text) > NICKNAME_MAX) return "";
+  return text;
+}
+
+function nicknameIssue(raw) {
+  if (typeof raw !== "string") return "empty";
+  const text = raw.trim();
+  if (!text) return "empty";
+  if (charCount(text) > NICKNAME_MAX) return "long";
+  return "";
+}
+
+function sanitizeBreed(raw) {
+  const id = String(raw == null ? "" : raw);
+  for (let i = 0; i < BREEDS.length; i++) {
+    if (BREEDS[i].id === id) return id;
+  }
+  return "";
+}
+
+function readProfilePatch(raw, state) {
+  const body = raw && typeof raw === "object" ? raw : {};
+  const hasNick = Object.prototype.hasOwnProperty.call(body, "nickname");
+  const hasBreed = Object.prototype.hasOwnProperty.call(body, "breed");
+  if (!hasNick && !hasBreed) return { ok: false, code: "EMPTY_PROFILE" };
+  const patch = {};
+  if (hasNick) {
+    const nickname = sanitizeNickname(body.nickname);
+    if (!nickname) {
+      return {
+        ok: false,
+        code:
+          nicknameIssue(body.nickname) === "long"
+            ? "NICKNAME_LONG"
+            : "NICKNAME_INVALID",
+      };
+    }
+    patch.nickname = nickname;
+  }
+  if (hasBreed) {
+    if (state && state.breedLocked) return { ok: false, code: "BREED_LOCKED" };
+    const breed = sanitizeBreed(body.breed);
+    if (!breed) return { ok: false, code: "BREED_INVALID" };
+    patch.breed = breed;
+  }
+  return { ok: true, patch };
+}
+
+function applyProfile(state, patch) {
+  const next = { ...(state || {}) };
+  if (patch && patch.nickname != null) next.nickname = patch.nickname;
+  if (patch && patch.breed != null && !next.breedLocked) {
+    next.breed = patch.breed;
+    next.breedLocked = true;
+  }
+  return next;
+}
+
+const TUTORIAL_CLOCK_FIELDS = [
+  "activityStartedAt",
+  "activityEndAt",
+  "travelStartedAt",
+  "travelEndAt",
+  "lastTravelAt",
+  "emptySince",
+  "nextDrinkCheckAt",
+  "nextEatCheckAt",
+  "nextIdleArtAt",
+  "reliefMealAt",
+  "welcomeHoldUntil",
+  "nextTravelCheckAt",
+];
+
+function pauseTutorialClock(state, now) {
+  const t = now || Date.now();
+  const anchor = Number(state && state.tutorialAnchorAt) || 0;
+  if (anchor > 0 && t < anchor) {
+    return {
+      ...(state || {}),
+      tutorialDone: false,
+      tutorialAnchorAt: anchor,
+    };
+  }
+  const delta = anchor > 0 ? t - anchor : 0;
+  const next = {
+    ...(state || {}),
+    tutorialDone: false,
+    tutorialAnchorAt: t,
+  };
+  if (delta > 0) {
+    TUTORIAL_CLOCK_FIELDS.forEach((key) => {
+      const value = Number(state[key]) || 0;
+      if (value > 0) next[key] = value + delta;
+    });
+  }
+  return next;
+}
+
+function holdForTutorial(state, now) {
+  return pauseTutorialClock(
+    {
+      ...(state || {}),
+      tutorialDone: false,
+      tutorialAnchorAt: 0,
+    },
+    now,
+  );
+}
+
+function completeTutorial(state, now) {
+  const t = now || Date.now();
+  const base =
+    state && state.tutorialDone === true
+      ? { ...state }
+      : pauseTutorialClock(state, t);
+  return {
+    ...base,
+    tutorialDone: true,
+    tutorialAnchorAt: 0,
+  };
+}
+
 function createState(now) {
   const t = now || Date.now();
   const base = scheduleNeedChecks(
@@ -244,9 +680,14 @@ function createState(now) {
       food: 0,
       water: 0,
       status: "home",
+      nickname: DEFAULT_NICKNAME,
+      breed: "",
+      breedLocked: false,
       travelId: "",
       travelEndAt: 0,
       travelStartedAt: 0,
+      travelBand: "",
+      journalBand: "",
       lastTravelAt: 0,
       nextTravelCheckAt: scheduleTravelCheck(t),
       hasUnreadCard: false,
@@ -255,14 +696,24 @@ function createState(now) {
       collectedCards: [],
       createdAt: t,
       emptySince: t,
+      tutorialDone: true,
+      tutorialAnchorAt: 0,
+      leafCount: 0,
+      leafStockEpoch: LEAF_STOCK_EPOCH,
+      planters: blankPlanters(),
     },
     t,
   );
-  return applyActivity(
-    base,
-    pickNextActivity({ activity: "", food: 0, water: 0, emptySince: t }, t),
-    t,
-  );
+  return {
+    ...applyActivity(
+      base,
+      pickNextActivity({ activity: "", food: 0, water: 0, emptySince: t }, t),
+      t,
+    ),
+    leafCount: 0,
+    leafStockEpoch: LEAF_STOCK_EPOCH,
+    planters: normalizePlanters(null, t),
+  };
 }
 
 function migrateActivity(raw) {
@@ -282,7 +733,7 @@ function normalize(raw, now) {
   }
   const collectedCards = (
     Array.isArray(raw.collectedCards) ? raw.collectedCards : []
-  ).map((card) => enrichCard(card, tripById));
+  ).map((card) => enrichCard(card, tripById, raw.breed));
   const activity = migrateActivity(raw);
   const food = Math.max(0, Math.min(FEED_CAP_G, Number(raw.food) || 0));
   const water = Math.max(0, Math.min(FEED_CAP_G, Number(raw.water) || 0));
@@ -296,13 +747,22 @@ function normalize(raw, now) {
     travelId: raw.status === "traveling" ? String(raw.travelId || "") : "",
     travelEndAt: Number(raw.travelEndAt) || 0,
     travelStartedAt: Number(raw.travelStartedAt) || 0,
+    travelBand:
+      raw.status === "traveling" ? sanitizeTravelBand(raw.travelBand) : "",
+    journalBand:
+      raw.status === "traveling" ? sanitizeJournalBand(raw.journalBand) : "",
     lastTravelAt: Number(raw.lastTravelAt) || 0,
     nextTravelCheckAt: Number(raw.nextTravelCheckAt) || scheduleTravelCheck(t),
-    hasUnreadCard: !!raw.hasUnreadCard,
+    journalReadModel: 1,
+    unreadCount:
+      Number(raw.journalReadModel) >= 1
+        ? Math.max(0, Math.floor(Number(raw.unreadCount) || 0))
+        : 0,
+    hasUnreadCard:
+      Number(raw.journalReadModel) >= 1 &&
+      Math.max(0, Math.floor(Number(raw.unreadCount) || 0)) > 0,
     lastCardTemplateId: String(
-      raw.lastCardTemplateId ||
-        (collectedCards[0] && collectedCards[0].templateId) ||
-        "",
+      raw.lastCardTemplateId || templateFromCards(collectedCards) || "",
     ),
     cardCount: Number(raw.cardCount) || collectedCards.length,
     collectedCards,
@@ -328,6 +788,28 @@ function normalize(raw, now) {
       t + randInt(EAT_CHECK_MIN_MS, EAT_CHECK_MAX_MS),
     welcomeHoldUntil: Number(raw.welcomeHoldUntil) || 0,
     reliefMealAt: Number(raw.reliefMealAt) || 0,
+    mealTotal:
+      activity === "eat" || activity === "drink"
+        ? Math.max(0, Math.floor(Number(raw.mealTotal) || 0))
+        : 0,
+    mealApplied:
+      activity === "eat" || activity === "drink"
+        ? Math.min(
+            Math.max(0, Math.floor(Number(raw.mealTotal) || 0)),
+            Math.max(0, Math.floor(Number(raw.mealApplied) || 0)),
+          )
+        : 0,
+    nickname: sanitizeNickname(raw.nickname) || DEFAULT_NICKNAME,
+    breed: sanitizeBreed(raw.breed),
+    breedLocked: !!(raw.breedLocked && sanitizeBreed(raw.breed)),
+    tutorialDone: raw.tutorialDone !== false,
+    tutorialAnchorAt: Number(raw.tutorialAnchorAt) || 0,
+    leafCount:
+      Number(raw.leafStockEpoch) === LEAF_STOCK_EPOCH
+        ? Math.max(0, Math.floor(Number(raw.leafCount) || 0))
+        : 0,
+    leafStockEpoch: LEAF_STOCK_EPOCH,
+    planters: normalizePlanters(raw.planters, t),
   };
   return merged;
 }
@@ -338,6 +820,14 @@ function isReady(state) {
 
 function canFeed(state) {
   return state.food < FEED_CAP_G || state.water < FEED_CAP_G;
+}
+
+function feedBlockedByLeaves(state, now) {
+  const t = now == null ? Date.now() : now;
+  const settled = settleMeal(state, t);
+  if (!canFeed(settled)) return false;
+  const leaves = Math.max(0, Math.floor(Number(settled.leafCount) || 0));
+  return leaves < FEED_LEAF_COST;
 }
 
 function canDepart(state) {
@@ -367,46 +857,61 @@ function getLoopSrc(frames, sequence, frameMs, now, startedAt) {
   return frames[sequence[step]];
 }
 
-function getSleepSrc(now, startedAt) {
+function getSleepSrc(now, startedAt, breedId) {
   return getLoopSrc(
-    SLEEP_FRAMES,
-    SLEEP_SEQUENCE,
+    spriteList(breedId, sleepNamesOf(breedId)),
+    sleepSequenceOf(breedId),
     SLEEP_FRAME_MS,
     now,
     startedAt,
   );
 }
 
-function getEatSrc(now, startedAt) {
-  return getLoopSrc(EAT_FRAMES, EAT_SEQUENCE, EAT_FRAME_MS, now, startedAt);
-}
-
 function usesLoopFrames(state) {
-  return state.activity === "sleep" || state.activity === "eat";
+  return (
+    state.activity === "sleep" ||
+    state.activity === "idle" ||
+    state.activity === "hungry" ||
+    state.activity === "eat" ||
+    state.activity === "drink"
+  );
 }
 
 function getCatSrc(state, now) {
-  const variant = state.poseVariant % 2;
+  const breedId = state && state.breed;
   if (state.activity === "sleep") {
-    return getSleepSrc(now, state.activityStartedAt);
+    return getSleepSrc(now, state.activityStartedAt, breedId);
   }
-  if (atDoor(state)) return `/images/cat/wait-${variant + 1}.png`;
-  if (state.activity === "eat") {
-    return getEatSrc(now, state.activityStartedAt);
+  if (state.activity === "wait" || state.activity === "decide") {
+    return spriteSrc(breedId, "wait");
   }
-  if (state.activity === "idle") {
-    const i = migrateIdleArt(state);
-    return IDLE_ARTS[i];
+  if (busyWithMeal(state)) {
+    return getLoopSrc(
+      spriteList(breedId, EAT_NAMES),
+      EAT_SEQUENCE,
+      EAT_FRAME_MS,
+      now,
+      state.activityStartedAt,
+    );
   }
-  if (state.idleKind === "stand") return "/images/cat/stand.png";
-  return `/images/cat/lie-${variant + 1}.png`;
+  return getLoopSrc(
+    spriteList(breedId, IDLE_FRAME_NAMES),
+    IDLE_SEQUENCE,
+    IDLE_FRAME_MS,
+    now,
+    state.activityStartedAt,
+  );
+}
+
+function bowlLevel(grams) {
+  const n = Math.max(0, Number(grams) || 0);
+  if (n <= 0) return 0;
+  return Math.min(FEED_CAP_G, Math.ceil(n / PORTION_G) * PORTION_G);
 }
 
 function getBowlSrc(kind, grams) {
-  if (kind === "food") {
-    return grams > 0 ? "/images/bowl-food.png" : "/images/bowl-food-empty.png";
-  }
-  return grams > 0 ? "/images/bowl-water.png" : "/images/bowl-water-empty.png";
+  const folder = kind === "food" ? "food" : "water";
+  return "/images/" + folder + "/" + bowlLevel(grams) + ".png";
 }
 
 function emptyTooLong(state, now) {
@@ -431,6 +936,67 @@ function pickReliefAmount() {
   return RELIEF_MEAL_AMOUNTS[rand() < 0.5 ? 0 : 1];
 }
 
+function mealStockField(activity) {
+  return activity === "eat" ? "food" : "water";
+}
+
+function beginMeal(state, kind, at, consume) {
+  return applyActivity(
+    {
+      ...state,
+      mealTotal: Math.max(0, Math.floor(Number(consume) || 0)),
+      mealApplied: 0,
+    },
+    kind,
+    at,
+    durationOf(kind),
+  );
+}
+
+function mealDueGrams(state, now) {
+  const total = Math.max(0, Math.floor(Number(state.mealTotal) || 0));
+  if (!busyWithMeal(state) || total <= 0) return 0;
+  const start = Number(state.activityStartedAt) || 0;
+  const end = Number(state.activityEndAt) || start;
+  if (now >= end) return total;
+  const elapsed = Math.max(0, now - start);
+  const span = Math.max(1, end - start);
+  return Math.min(total, Math.floor((total * elapsed) / span));
+}
+
+function mealGramAt(state, grams) {
+  const total = Math.max(0, Math.floor(Number(state.mealTotal) || 0));
+  const start = Number(state.activityStartedAt) || 0;
+  const end = Number(state.activityEndAt) || start;
+  if (grams <= 0) return start;
+  if (!(total > 0) || grams >= total) return end;
+  const span = Math.max(1, end - start);
+  return start + Math.ceil((grams * span) / total);
+}
+
+function settleMeal(state, now) {
+  if (!state || !busyWithMeal(state)) return state;
+  const total = Math.max(0, Math.floor(Number(state.mealTotal) || 0));
+  const applied = Math.min(
+    total,
+    Math.max(0, Math.floor(Number(state.mealApplied) || 0)),
+  );
+  const due = mealDueGrams(state, now);
+  if (due <= applied) return state;
+  const field = mealStockField(state.activity);
+  const before = Math.max(0, Number(state[field]) || 0);
+  const take = Math.min(before, due - applied);
+  const next = {
+    ...state,
+    [field]: before - take,
+    mealApplied: due,
+  };
+  if (!isEmpty(state) && isEmpty(next)) {
+    return { ...next, emptySince: mealGramAt(state, applied + before) };
+  }
+  return syncEmptySince(next, now);
+}
+
 function doReliefMeal(state, at) {
   let next = {
     ...state,
@@ -441,13 +1007,7 @@ function doReliefMeal(state, at) {
   const kind = pickReliefKind();
   const stock = kind === "eat" ? next.food : next.water;
   const consume = Math.min(stock, pickReliefAmount());
-  if (kind === "eat") {
-    next = { ...next, food: Math.max(0, next.food - consume) };
-  } else {
-    next = { ...next, water: Math.max(0, next.water - consume) };
-  }
-  next = syncEmptySince(next, at);
-  next = applyActivity(next, kind, at);
+  next = beginMeal(next, kind, at, consume);
   if (next.nextDrinkCheckAt <= at) {
     next = {
       ...next,
@@ -464,13 +1024,17 @@ function doReliefMeal(state, at) {
 }
 
 function feed(state, now) {
-  if (!canFeed(state)) return state;
   const t = now == null ? Date.now() : now;
-  const thank = shouldScheduleReliefMeal(state, t);
+  const settled = settleMeal(state, t);
+  if (!canFeed(settled)) return settled;
+  const leaves = Math.max(0, Math.floor(Number(settled.leafCount) || 0));
+  if (leaves < FEED_LEAF_COST) return settled;
+  const thank = shouldScheduleReliefMeal(settled, t);
   let next = {
-    ...state,
-    food: Math.min(FEED_CAP_G, state.food + PORTION_G),
-    water: Math.min(FEED_CAP_G, state.water + PORTION_G),
+    ...settled,
+    food: Math.min(FEED_CAP_G, settled.food + PORTION_G),
+    water: Math.min(FEED_CAP_G, settled.water + PORTION_G),
+    leafCount: leaves - FEED_LEAF_COST,
   };
   next = syncEmptySince(next, t);
   if (thank) {
@@ -489,10 +1053,38 @@ function feed(state, now) {
   return next;
 }
 
+function sanitizeTravelBand(band) {
+  if (band === "low" || band === "mid" || band === "high") return band;
+  return "";
+}
+
+function sanitizeJournalBand(band) {
+  if (
+    band === "empty" ||
+    band === "half" ||
+    band === "short" ||
+    band === "full"
+  ) {
+    return band;
+  }
+  return "";
+}
+
 function travelBand(state) {
-  if (state.food >= 20 && state.water >= 20) return "high";
-  if (state.food >= PORTION_G && state.water >= PORTION_G) return "mid";
+  const food = Math.max(0, Number(state && state.food) || 0);
+  const water = Math.max(0, Number(state && state.water) || 0);
+  if (food >= HIGH_SUPPLY_G && water >= HIGH_SUPPLY_G) return "high";
+  if (food >= MID_SUPPLY_G && water >= MID_SUPPLY_G) return "mid";
   return "low";
+}
+
+function journalBand(state) {
+  const food = Math.max(0, Number(state && state.food) || 0);
+  const water = Math.max(0, Number(state && state.water) || 0);
+  if (food <= 0 && water <= 0) return "empty";
+  if (food <= 0 || water <= 0) return "half";
+  if (food < PORTION_G && water < PORTION_G) return "short";
+  return "full";
 }
 
 function pickTravelDuration(band) {
@@ -517,6 +1109,7 @@ function travelCost(band, durationMs, state) {
 function depart(state, now, durationMs, templates) {
   if (!canDepart(state)) return state;
   const band = travelBand(state);
+  const photos = journalBand(state);
   const picked = durationMs == null ? pickTravelDuration(band) : durationMs;
   const duration = Math.min(Math.max(1, picked), TRAVEL_MAX_MS);
   const cost = travelCost(band, duration, state);
@@ -529,6 +1122,8 @@ function depart(state, now, durationMs, templates) {
     travelId: trip && trip.id ? trip.id : "",
     travelEndAt: now + duration,
     travelStartedAt: now,
+    travelBand: band,
+    journalBand: photos,
     lastTravelAt: now,
     nextTravelCheckAt: scheduleTravelCheck(now + duration),
   };
@@ -546,14 +1141,24 @@ function shouldTravelFromDecide(state) {
   return rand() < TRAVEL_CHANCE;
 }
 
+function isForgotCard(card) {
+  return !!(card && card.kind === FORGOT_KIND);
+}
+
+function templateFromCards(cards) {
+  if (!cards) return "";
+  for (let i = 0; i < cards.length; i++) {
+    const id = cards[i] && cards[i].templateId;
+    if (id && !isForgotCard(cards[i])) return id;
+  }
+  return "";
+}
+
 function lastTemplateId(source) {
   if (!source) return "";
-  if (Array.isArray(source)) {
-    return (source[0] && source[0].templateId) || "";
-  }
+  if (Array.isArray(source)) return templateFromCards(source);
   if (source.lastCardTemplateId) return source.lastCardTemplateId;
-  const cards = source.collectedCards;
-  return (cards && cards[0] && cards[0].templateId) || "";
+  return templateFromCards(source.collectedCards);
 }
 
 function tripHasArt(item) {
@@ -571,7 +1176,17 @@ function findTrip(id, templates) {
   return null;
 }
 
-function pickTrip(source, templates) {
+function presentCard(card, breedId) {
+  if (!card || typeof card !== "object") return card;
+  if (isForgotCard(card)) return card;
+  const template = findTrip(card.templateId);
+  const base = (template && template.imageFileID) || card.imageFileID || "";
+  const imageFileID = cardImageFileID(base, breedId);
+  if (!imageFileID || imageFileID === (card.imageFileID || "")) return card;
+  return { ...card, imageFileID };
+}
+
+function pickTrip(source, templates, seed) {
   const list = templates && templates.length ? templates : TRIPS;
   const withPhoto = list.filter(tripHasArt);
   const candidates = withPhoto.length ? withPhoto : list;
@@ -580,16 +1195,53 @@ function pickTrip(source, templates) {
     ? candidates.filter((item) => item.id !== lastId)
     : candidates;
   const sourceList = pool.length ? pool : candidates;
-  return sourceList[Math.floor(rand() * sourceList.length)];
+  const n =
+    seed != null && seed !== "" ? hashSeed(String(seed)) / 4294967296 : rand();
+  return sourceList[Math.floor(n * sourceList.length)];
 }
 
 function pad2(n) {
   return n < 10 ? "0" + n : String(n);
 }
 
-function formatDateTime(ts) {
+function formatTime(ts) {
   const d = new Date(ts);
-  return `${d.getMonth() + 1}月${d.getDate()}日 ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+function formatDate(ts) {
+  const d = new Date(ts);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function formatDateTime(ts) {
+  return `${formatDate(ts)} ${formatTime(ts)}`;
+}
+
+function sameCalendarDay(a, b) {
+  const da = new Date(a);
+  const db = new Date(b);
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  );
+}
+
+function formatListDateTime(ts, now) {
+  const at = now == null ? Date.now() : now;
+  if (sameCalendarDay(ts, at)) return formatTime(ts);
+  return `${formatTime(ts)} ${formatDate(ts)}`;
+}
+
+function cardListTime(card) {
+  return Number((card && (card.startedAt || card.collectedAt)) || 0);
+}
+
+function sortCardsByListDate(cards) {
+  return (Array.isArray(cards) ? cards.slice() : []).sort(
+    (a, b) => cardListTime(b) - cardListTime(a),
+  );
 }
 
 function hashSeed(str) {
@@ -610,8 +1262,40 @@ function pickJournaledAt(startedAt, endedAt, seed) {
   return start + (hashSeed(seed) % span);
 }
 
-function enrichCard(card, tripById) {
+function bringsJournal(startedAt, endedAt, band) {
+  const seed = `${Number(startedAt) || 0}:${Number(endedAt) || 0}`;
+  const n = hashSeed(seed);
+  const mixed = n >>> 8;
+  const photos = sanitizeJournalBand(band);
+  if (photos === "full") return true;
+  if (photos === "short") return mixed % 3 < 2;
+  if (photos === "half") return mixed % 2 === 0;
+  if (photos === "empty") return n % JOURNAL_BRING_DIVISOR === 0;
+  const tier = sanitizeTravelBand(band) || "low";
+  if (tier === "high") return mixed % 3 < 2;
+  if (tier === "mid") return mixed % 2 === 0;
+  return n % JOURNAL_BRING_DIVISOR === 0;
+}
+
+function enrichCard(card, tripById, breedId) {
   if (!card || typeof card !== "object") return card;
+  if (isForgotCard(card)) {
+    const endedAt = Number(card.collectedAt) || 0;
+    const startedAt =
+      Number(card.startedAt) ||
+      (endedAt ? endedAt - LEGACY_TRAVEL_DURATION_MS : 0);
+    return {
+      ...card,
+      kind: FORGOT_KIND,
+      templateId: "",
+      location: "",
+      image: "",
+      imageFileID: "",
+      journal: "",
+      startedAt,
+      journaledAt: Number(card.journaledAt) || startedAt,
+    };
+  }
   const template = tripById && card.templateId && tripById[card.templateId];
   const endedAt = Number(card.collectedAt) || 0;
   const startedAt =
@@ -624,12 +1308,12 @@ function enrichCard(card, tripById) {
     startedAt,
     journaledAt,
   };
-  if (
-    template &&
-    template.imageFileID &&
-    card.imageFileID !== template.imageFileID
-  ) {
-    next.imageFileID = template.imageFileID;
+  const imageFileID = cardImageFileID(
+    (template && template.imageFileID) || card.imageFileID || "",
+    breedId,
+  );
+  if (imageFileID && next.imageFileID !== imageFileID) {
+    next.imageFileID = imageFileID;
   }
   if (template && template.image && card.image !== template.image) {
     next.image = template.image;
@@ -637,26 +1321,58 @@ function enrichCard(card, tripById) {
   return next;
 }
 
-function makeCard(template, now, trip) {
+function cardId(startedAt, endedAt, templateId) {
+  return `${Number(startedAt) || 0}:${Number(endedAt) || 0}:${String(
+    templateId || "",
+  )}`;
+}
+
+function tripTimes(now, trip) {
   const endedAt =
     trip && trip.endedAt != null ? Number(trip.endedAt) : Number(now) || 0;
   const startedAt =
     trip && trip.startedAt != null
       ? Number(trip.startedAt)
       : endedAt - LEGACY_TRAVEL_DURATION_MS;
-  const id = `${endedAt}-${Math.random().toString(36).slice(2, 8)}`;
-  const span = Math.max(1, endedAt - startedAt);
-  const journaledAt = startedAt + Math.floor(rand() * span);
+  return { startedAt, endedAt };
+}
+
+function makeForgotCard(now, trip) {
+  const times = tripTimes(now, trip);
+  return {
+    id: cardId(times.startedAt, times.endedAt, FORGOT_KIND),
+    kind: FORGOT_KIND,
+    templateId: "",
+    location: "",
+    image: "",
+    imageFileID: "",
+    journal: "",
+    collectedAt: times.endedAt,
+    startedAt: times.startedAt,
+    journaledAt: times.startedAt,
+  };
+}
+
+function makeCard(template, now, trip) {
+  const times = tripTimes(now, trip);
+  const endedAt = times.endedAt;
+  const startedAt = times.startedAt;
+  const id = cardId(startedAt, endedAt, template && template.id);
+  const journaledAt = pickJournaledAt(startedAt, endedAt, id);
   return {
     id,
     templateId: template.id,
     location: template.location,
     image: template.image || "",
-    imageFileID: template.imageFileID || "",
+    imageFileID: cardImageFileID(
+      template.imageFileID || "",
+      trip && trip.breed,
+    ),
     journal: template.journal,
     collectedAt: endedAt,
     startedAt,
     journaledAt,
+    unread: true,
   };
 }
 
@@ -666,21 +1382,51 @@ function completeTravel(state, now, templates, opts) {
     state.travelStartedAt > 0
       ? state.travelStartedAt
       : endedAt - LEGACY_TRAVEL_DURATION_MS;
-  const locked = findTrip(state.travelId, templates);
-  const template = locked || pickTrip(state, templates);
-  const card = makeCard(template, endedAt, {
-    startedAt,
-    endedAt,
-  });
+  const journal =
+    state && state.debugForceForgot
+      ? false
+      : state && state.debugForceJournal
+        ? true
+        : bringsJournal(
+            startedAt,
+            endedAt,
+            state.journalBand || state.travelBand,
+          );
+  let card;
+  let lastCardTemplateId =
+    state.lastCardTemplateId || lastTemplateId(state) || "";
+  if (journal) {
+    const locked = findTrip(state.travelId, templates);
+    const template =
+      locked ||
+      pickTrip(
+        state,
+        templates,
+        `${startedAt}:${endedAt}:${state.travelId || ""}`,
+      );
+    card = makeCard(template, endedAt, {
+      startedAt,
+      endedAt,
+      breed: state.breed,
+    });
+    lastCardTemplateId = card.templateId;
+  } else {
+    card = makeForgotCard(endedAt, { startedAt, endedAt });
+  }
   const prevCount = Number(state.cardCount);
+  const unreadCount =
+    Math.max(0, Math.floor(Number(state.unreadCount) || 0)) + (journal ? 1 : 0);
   const home = {
     ...state,
     status: "home",
     travelId: "",
     travelEndAt: 0,
     travelStartedAt: 0,
-    hasUnreadCard: true,
-    lastCardTemplateId: card.templateId,
+    travelBand: "",
+    journalBand: "",
+    unreadCount,
+    hasUnreadCard: unreadCount > 0,
+    lastCardTemplateId,
     cardCount:
       (Number.isFinite(prevCount) && prevCount > 0
         ? prevCount
@@ -716,15 +1462,23 @@ function formatRemain(ms) {
 function formatAway(state, now) {
   if (state.status !== "traveling") return "";
   const start = state.travelStartedAt || now;
-  const minutes = Math.max(0, Math.floor((now - start) / MINUTE_MS));
-  return `已出门 ${minutes} 分钟`;
+  const totalMinutes = Math.max(0, Math.floor((now - start) / MINUTE_MS));
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+  const parts = [];
+  if (days > 0) parts.push(`${days} 天`);
+  if (hours > 0) parts.push(`${hours} 小时`);
+  if (minutes > 0 || parts.length === 0) parts.push(`${minutes} 分钟`);
+  return `已出门 ${parts.join(" ")}`;
 }
 
 function switchHome(state, now, opts, templates) {
+  const settled = settleMeal(state, now);
   const willTravel =
-    state.activity === "decide" && shouldTravelFromDecide(state);
+    settled.activity === "decide" && shouldTravelFromDecide(settled);
   const next = {
-    ...state,
+    ...settled,
     debugForceTravel: false,
     debugForceStay: false,
   };
@@ -764,13 +1518,7 @@ function doDrinkCheck(state, at) {
     nextDrinkCheckAt: at + randInt(DRINK_CHECK_MIN_MS, DRINK_CHECK_MAX_MS),
   };
   if (state.water <= 0 || !shouldTakeMeal()) return next;
-  const consume = pickMealConsume(state.water);
-  next = {
-    ...next,
-    water: Math.max(0, state.water - consume),
-  };
-  next = syncEmptySince(next, at);
-  return applyActivity(next, "drink", at);
+  return beginMeal(next, "drink", at, pickMealConsume(state.water));
 }
 
 function doEatCheck(state, at) {
@@ -791,13 +1539,7 @@ function doEatCheck(state, at) {
     nextEatCheckAt: at + randInt(EAT_CHECK_MIN_MS, EAT_CHECK_MAX_MS),
   };
   if (state.food <= 0 || !shouldTakeMeal()) return next;
-  const consume = pickMealConsume(state.food);
-  next = {
-    ...next,
-    food: Math.max(0, state.food - consume),
-  };
-  next = syncEmptySince(next, at);
-  return applyActivity(next, "eat", at);
+  return beginMeal(next, "eat", at, pickMealConsume(state.food));
 }
 
 function nextEvent(state) {
@@ -871,6 +1613,10 @@ function collapseCatchUp(state, now, templates, opts, newCards) {
     current = done.state;
     if (done.card) newCards.push(done.card);
   }
+  if (busyWithMeal(current)) {
+    const end = Number(current.activityEndAt) || now;
+    current = settleMeal(current, end > 0 && end <= now ? end : now);
+  }
   current = {
     ...current,
     reliefMealAt: 0,
@@ -882,6 +1628,19 @@ function collapseCatchUp(state, now, templates, opts, newCards) {
 }
 
 function tick(state, now, templates, options) {
+  if (state && state.tutorialDone !== true) {
+    const grown = growPlanters(state, now);
+    const paused = pauseTutorialClock(grown, now);
+    return {
+      state: paused,
+      completed: false,
+      changed:
+        grown !== state || paused.tutorialAnchorAt !== state.tutorialAnchorAt,
+      welcomeBack: false,
+      newCards: [],
+      remainMs: remainMs(paused, now),
+    };
+  }
   const enteringApp = !!(options && options.enteringApp);
   const catchUpOpts = { online: !enteringApp };
   let current = state;
@@ -925,9 +1684,19 @@ function tick(state, now, templates, options) {
     welcomeBack = true;
     changed = true;
   }
+  const drained = settleMeal(current, now);
+  if (drained !== current) {
+    current = drained;
+    changed = true;
+  }
   const posed = maybeSwitchIdleArt(current, now);
   if (posed !== current) {
     current = posed;
+    changed = true;
+  }
+  const grown = growPlanters(current, now);
+  if (grown !== current) {
+    current = grown;
     changed = true;
   }
   return {
@@ -954,21 +1723,44 @@ function toPlayerDoc(state) {
     travelId: state.travelId || "",
     travelStartedAt: Number(state.travelStartedAt) || 0,
     travelEndAt: Number(state.travelEndAt) || 0,
+    travelBand:
+      state.status === "traveling" ? sanitizeTravelBand(state.travelBand) : "",
+    journalBand:
+      state.status === "traveling"
+        ? sanitizeJournalBand(state.journalBand)
+        : "",
     lastTravelAt: Number(state.lastTravelAt) || 0,
     emptySince: Number(state.emptySince) || 0,
     nextDrinkCheckAt: Number(state.nextDrinkCheckAt) || 0,
     nextEatCheckAt: Number(state.nextEatCheckAt) || 0,
     reliefMealAt: Number(state.reliefMealAt) || 0,
+    mealTotal: busyWithMeal(state)
+      ? Math.max(0, Math.floor(Number(state.mealTotal) || 0))
+      : 0,
+    mealApplied: busyWithMeal(state)
+      ? Math.max(0, Math.floor(Number(state.mealApplied) || 0))
+      : 0,
     idleArt: migrateIdleArt(state),
     idleKind: state.idleKind === "stand" ? "stand" : "lie",
     poseVariant: Number(state.poseVariant) === 1 ? 1 : 0,
     nextIdleArtAt: Number(state.nextIdleArtAt) || 0,
-    hasUnreadCard: !!state.hasUnreadCard,
+    unreadCount: Math.max(0, Math.floor(Number(state.unreadCount) || 0)),
+    hasUnreadCard: Math.max(0, Math.floor(Number(state.unreadCount) || 0)) > 0,
+    journalReadModel: Number(state.journalReadModel) >= 1 ? 1 : 0,
     lastCardTemplateId: String(
       state.lastCardTemplateId || lastTemplateId(state) || "",
     ),
     cardCount: Number(state.cardCount) || collected.length,
     createdAt: Number(state.createdAt) || 0,
+    nickname: sanitizeNickname(state.nickname) || DEFAULT_NICKNAME,
+    breed: sanitizeBreed(state.breed),
+    breedLocked: !!(state.breedLocked && sanitizeBreed(state.breed)),
+    tutorialDone: state.tutorialDone === true,
+    tutorialAnchorAt: Number(state.tutorialAnchorAt) || 0,
+    leafCount: Math.max(0, Math.floor(Number(state.leafCount) || 0)),
+    leafStockEpoch:
+      Number(state.leafStockEpoch) === LEAF_STOCK_EPOCH ? LEAF_STOCK_EPOCH : 0,
+    planters: plantersForDoc(state.planters),
   };
 }
 
@@ -977,30 +1769,68 @@ function clearUnread(state) {
   return { ...state, hasUnreadCard: false };
 }
 
+function adjustUnread(state, delta) {
+  const unreadCount = Math.max(
+    0,
+    Math.floor(Number(state && state.unreadCount) || 0) + (Number(delta) || 0),
+  );
+  return { ...state, unreadCount, hasUnreadCard: unreadCount > 0 };
+}
+
+function markCardRead(state, cardId) {
+  const id = String(cardId || "");
+  let changed = false;
+  const collectedCards = (state.collectedCards || []).map((card) => {
+    if (!card || String(card.id || "") !== id || !card.unread) return card;
+    changed = true;
+    return { ...card, unread: false };
+  });
+  if (!changed) return state;
+  return adjustUnread({ ...state, collectedCards }, -1);
+}
+
+function formatTravelOut(state) {
+  const nickname = state.nickname || DEFAULT_NICKNAME;
+  if (nickname === DEFAULT_NICKNAME) return "它出门了";
+  return `${nickname}出门了`;
+}
+
 function viewModel(state, now) {
-  const traveling = state.status === "traveling";
-  const left = remainMs(state, now);
-  const door = !traveling && atDoor(state);
+  const shown = settleMeal(state, now);
+  const traveling = shown.status === "traveling";
+  const left = remainMs(shown, now);
+  const door = !traveling && atDoor(shown);
+  const catSrc = traveling ? "" : getCatSrc(shown, now);
   return {
-    food: state.food,
-    water: state.water,
+    food: shown.food,
+    water: shown.water,
     traveling,
-    canFeed: canFeed(state),
-    statusText: getStatusText(state),
-    sleeping: !traveling && state.activity === "sleep",
-    sleepFrames: SLEEP_FRAMES,
-    eating: !traveling && state.activity === "eat",
-    eatFrames: EAT_FRAMES,
-    catSrc: traveling ? "" : getCatSrc(state, now),
+    canFeed: canFeed(shown),
+    statusText: getStatusText(shown),
+    showStatusBar: door,
+    sleeping: !traveling && shown.activity === "sleep",
+    sleepFrames: spriteList(shown.breed, sleepNamesOf(shown.breed)),
+    eating: !traveling && busyWithMeal(shown),
+    meal: !traveling && busyWithMeal(shown) ? shown.activity : "",
+    eatFrames: spriteList(shown.breed, EAT_NAMES),
+    idling:
+      !traveling &&
+      (shown.activity === "idle" || shown.activity === "hungry"),
+    idleFrames: spriteList(shown.breed, IDLE_FRAME_NAMES),
+    catSrc,
+    catPoseKey: catSrc ? [catSrc] : [],
     catPlace: door ? "cat-door" : "cat-near",
-    showBag: door && state.activity === "decide",
-    foodBowlSrc: getBowlSrc("food", state.food),
-    waterBowlSrc: getBowlSrc("water", state.water),
-    hasUnreadCard: state.hasUnreadCard,
+    showBag: !traveling,
+    foodBowlSrc: getBowlSrc("food", shown.food),
+    waterBowlSrc: getBowlSrc("water", shown.water),
+    hasUnreadCard: shown.hasUnreadCard,
     remainText: traveling ? formatRemain(left) : "",
-    awayText: traveling ? formatAway(state, now) : "",
-    statusRemainText: formatRemain(statusRemainMs(state, now)),
-    showFeedHint: emptyTooLong(state, now),
+    awayText: traveling ? formatAway(shown, now) : "",
+    travelOutText: traveling ? formatTravelOut(shown) : "",
+    statusRemainText: formatRemain(statusRemainMs(shown, now)),
+    showFeedHint: emptyTooLong(shown, now),
+    leafCount: Math.max(0, Math.floor(Number(shown.leafCount) || 0)),
+    planters: viewPlanters(shown.planters),
   };
 }
 
@@ -1022,11 +1852,22 @@ module.exports = {
   DECIDE_MIN_MS,
   DECIDE_MAX_MS,
   TRAVEL_CHANCE,
+  JOURNAL_BRING_DIVISOR,
+  FORGOT_KIND,
   EMPTY_HUNGRY_MS,
   WELCOME_HOLD_MS,
   RELIEF_MEAL_DELAY_MS,
   RELIEF_MEAL_AMOUNTS,
   FEED_CAP_G,
+  FEED_LEAF_COST,
+  MID_SUPPLY_G,
+  HIGH_SUPPLY_G,
+  PLANTER_COUNT,
+  LEAF_BATCH,
+  LEAF_CAP,
+  GROW_MIN_MS,
+  GROW_MAX_MS,
+  LEAF_STOCK_EPOCH,
   MEAL_CHANCE,
   MEAL_CONSUME_MIN_G,
   MEAL_CONSUME_MAX_G,
@@ -1040,10 +1881,23 @@ module.exports = {
   MID_TRAVEL_MAX_MS,
   HIGH_TRAVEL_MIN_MS,
   HIGH_TRAVEL_MAX_MS,
+  DEFAULT_NICKNAME,
+  NICKNAME_MAX,
+  BREEDS,
+  breedSpec,
+  spriteSrc,
+  cardImageFileID,
+  presentCard,
+  sanitizeNickname,
+  nicknameIssue,
+  sanitizeBreed,
+  readProfilePatch,
+  applyProfile,
   SLEEP_FRAMES,
   SLEEP_FRAME_MS,
-  EAT_FRAMES,
   EAT_FRAME_MS,
+  EAT_SRC,
+  IDLE_FRAME_MS,
   IDLE_ARTS,
   TICK_GUARD,
   usesLoopFrames,
@@ -1053,9 +1907,12 @@ module.exports = {
   lastTemplateId,
   findTrip,
   createState,
+  holdForTutorial,
+  completeTutorial,
   normalize,
   isReady,
   canFeed,
+  feedBlockedByLeaves,
   emptyTooLong,
   canDepart,
   atDoor,
@@ -1063,16 +1920,30 @@ module.exports = {
   getCatSrc,
   getBowlSrc,
   feed,
+  planterArt,
+  growPlanters,
+  harvestPlanter,
+  commitHarvest,
   depart,
   tick,
   clearUnread,
+  markCardRead,
+  adjustUnread,
   viewModel,
   formatRemain,
   formatAway,
   statusRemainMs,
   formatDateTime,
+  formatListDateTime,
+  cardListTime,
+  sortCardsByListDate,
   pickTrip,
+  bringsJournal,
+  journalBand,
+  isForgotCard,
+  cardId,
   makeCard,
+  makeForgotCard,
   applyActivity,
   pickNextActivity,
   travelBand,

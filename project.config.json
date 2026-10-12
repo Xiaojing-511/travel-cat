@@ -62,27 +62,17 @@
       "list": []
     },
     "miniprogram": {
-      "list": [
-        {
-          "id": -1,
-          "name": "db guide",
-          "pathName": "pages/databaseGuide/databaseGuide"
-        }
-      ]
+      "list": []
     }
   },
   "compileType": "miniprogram",
   "srcMiniprogramRoot": "miniprogram/",
   "packOptions": {
     "ignore": [
-      { "type": "folder", "value": "pages/example" },
-      { "type": "folder", "value": "components" },
-      { "type": "file", "value": "envList.js" },
-      { "type": "folder", "value": "images/trips" },
-      { "type": "file", "value": "images/home-bg.png" },
-      { "type": "file", "value": "images/card-bg.png" },
-      { "type": "file", "value": "audio/bgm.mp3" },
-      { "type": "suffix", "value": ".DS_Store" }
+      {
+        "value": ".DS_Store",
+        "type": "suffix"
+      }
     ],
     "include": []
   },

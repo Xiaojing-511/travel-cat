@@ -87,6 +87,12 @@ async function savePlayer(db, userId, expectedRev, state, now, extra) {
     lastAdvancedAt: now,
     ...(extra || {}),
   };
+  Object.keys(data).forEach((key) => {
+    const value = data[key];
+    if (value === undefined || (typeof value === "number" && !Number.isFinite(value))) {
+      delete data[key];
+    }
+  });
   await db.collection("players").doc(userId).update({
     data,
   });

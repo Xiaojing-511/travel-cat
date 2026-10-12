@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 把首页切到 decide（要出门吗...），用来看门口猫咪左边的书包。
+ * 把首页切到 decide（要出门吗...），用来看门口犹豫。书包与犹豫无关，在家时固定在页面右侧。
  *
  * 用法：
  *   node scripts/demo-decide.js
@@ -29,7 +29,7 @@ let state = far(game.applyActivity(game.createState(now), "decide", now, holdMs)
 state = { ...state, food: 10, water: 10, emptySince: 0 };
 const vm = game.viewModel(state, now);
 
-console.log("场景：强制首页进入 decide，检查门口书包。");
+console.log("场景：强制首页进入 decide。书包在家时显示，与犹豫无关。");
 console.log("");
 console.log("======== 犹豫中（要出门吗...） ========");
 console.log("activity      :", state.activity);
@@ -41,7 +41,7 @@ console.log("粮 / 水       :", vm.food + "g / " + vm.water + "g");
 console.log("剩余          :", vm.statusRemainText);
 
 if (state.activity !== "decide" || vm.catPlace !== "cat-door" || vm.showBag !== true) {
-  console.error("\n失败：decide 时应在门口并显示书包。");
+  console.error("\n失败：decide 时应在门口，且在家时显示书包。");
   process.exit(1);
 }
 
@@ -78,6 +78,6 @@ console.log(`(function () {
   cache.player = Object.assign({}, cache.player || {}, state);
   cache.serverNow = now;
   wx.setStorageSync('travel_cat_cache_v1', cache);
-  console.log('已切到 decide，约 10 分钟。门口应有书包。showBag=', page.data.showBag, 'catPlace=', page.data.catPlace);
+  console.log('已切到 decide，约 10 分钟。书包在页面右侧，与犹豫无关。showBag=', page.data.showBag, 'catPlace=', page.data.catPlace);
 })();`);
 console.log("-------------------------------------------");

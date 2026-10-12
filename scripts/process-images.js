@@ -1,10 +1,10 @@
-const fs = require('fs');
-const path = require('path');
-const Jimp = require('jimp');
+const fs = require("fs");
+const path = require("path");
+const Jimp = require("jimp");
 
-const ROOT = path.join(__dirname, '..');
-const SRC = path.join(ROOT, 'images');
-const OUT = path.join(ROOT, 'miniprogram', 'images');
+const ROOT = path.join(__dirname, "..");
+const SRC = path.join(ROOT, "images");
+const OUT = path.join(ROOT, "miniprogram", "images");
 
 function distWhite(r, g, b) {
   return 255 - r + (255 - g) + (255 - b);
@@ -23,7 +23,10 @@ function floodKnockout(image, maxDist, fromAlpha) {
     const i = y * w + x;
     if (seen[i]) return;
     const o = i * 4;
-    if (data[o + 3] === 0 || distWhite(data[o], data[o + 1], data[o + 2]) <= maxDist) {
+    if (
+      data[o + 3] === 0 ||
+      distWhite(data[o], data[o + 1], data[o + 2]) <= maxDist
+    ) {
       seen[i] = 1;
       q.push(i);
     }
@@ -189,9 +192,54 @@ function alphaBounds(image, cut) {
   return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
 }
 
+async function normalizeLoopFrames(dir, maxSide) {
+  const names = ["001.png", "002.png"];
+  const frames = [];
+  for (let i = 0; i < names.length; i++) {
+    const image = await Jimp.read(path.join(dir, names[i]));
+    frames.push({ name: names[i], image, box: alphaBounds(image, 8) });
+  }
+  let maxW = 1;
+  let maxH = 1;
+  for (let i = 0; i < frames.length; i++) {
+    maxW = Math.max(maxW, frames[i].box.w);
+    maxH = Math.max(maxH, frames[i].box.h);
+  }
+  const side = maxSide || 640;
+  const scale = Math.min(side / maxW, side / maxH);
+  const pad = 8;
+  const canvasW = Math.round(maxW * scale) + pad * 2;
+  const canvasH = Math.round(maxH * scale) + pad * 2;
+  for (let i = 0; i < frames.length; i++) {
+    const frame = frames[i];
+    const dw = Math.max(1, Math.round(frame.box.w * scale));
+    const dh = Math.max(1, Math.round(frame.box.h * scale));
+    const cropped = frame.image
+      .clone()
+      .crop(frame.box.x, frame.box.y, frame.box.w, frame.box.h)
+      .resize(dw, dh, Jimp.RESIZE_BICUBIC);
+    const canvas = new Jimp(canvasW, canvasH, 0x00000000);
+    const x = Math.round((canvasW - dw) / 2);
+    const y = canvasH - pad - dh;
+    canvas.composite(cropped, x, y);
+    clearTransparentRgb(canvas);
+    const dest = path.join(dir, frame.name);
+    await canvas.writeAsync(dest);
+    const stat = fs.statSync(dest);
+    console.log(
+      "normalize loop",
+      path.basename(dir),
+      frame.name,
+      `${canvasW}x${canvasH}`,
+      `content ${dw}x${dh}@${x},${y}`,
+      `${Math.round(stat.size / 1024)}kb`,
+    );
+  }
+}
+
 async function normalizeSleepFrames(dir, canvasW) {
   const width = canvasW || 400;
-  const names = ['001.png', '002.png', '003.png'];
+  const names = ["001.png", "002.png", "003.png"];
   const frames = [];
   for (let i = 0; i < names.length; i++) {
     const image = await Jimp.read(path.join(dir, names[i]));
@@ -208,7 +256,9 @@ async function normalizeSleepFrames(dir, canvasW) {
   const canvasH = maxScaledH + 16;
   for (let i = 0; i < frames.length; i++) {
     const frame = frames[i];
-    const cropped = frame.image.clone().crop(frame.box.x, frame.box.y, frame.box.w, frame.box.h);
+    const cropped = frame.image
+      .clone()
+      .crop(frame.box.x, frame.box.y, frame.box.w, frame.box.h);
     cropped.resize(contentW, frame.scaledH);
     const canvas = new Jimp(width, canvasH, 0x00000000);
     canvas.composite(cropped, 8, canvasH - 8 - frame.scaledH);
@@ -216,7 +266,7 @@ async function normalizeSleepFrames(dir, canvasW) {
     await canvas.writeAsync(dest);
     const stat = fs.statSync(dest);
     console.log(
-      'normalize sleep',
+      "normalize sleep",
       frame.name,
       `${width}x${canvasH}`,
       `${Math.round(stat.size / 1024)}kb`,
@@ -251,7 +301,7 @@ function cropToAlpha(image, pad) {
 }
 
 async function cutout(src, dest, maxSide) {
-  console.log('cutout', path.basename(src));
+  console.log("cutout", path.basename(src));
   const image = await Jimp.read(src);
   image.scaleToFit(maxSide, maxSide);
   floodKnockout(image, 42);
@@ -259,11 +309,16 @@ async function cutout(src, dest, maxSide) {
   cropToAlpha(image, 8);
   await image.writeAsync(dest);
   const stat = fs.statSync(dest);
-  console.log('  ->', path.relative(ROOT, dest), `${image.bitmap.width}x${image.bitmap.height}`, `${Math.round(stat.size / 1024)}kb`);
+  console.log(
+    "  ->",
+    path.relative(ROOT, dest),
+    `${image.bitmap.width}x${image.bitmap.height}`,
+    `${Math.round(stat.size / 1024)}kb`,
+  );
 }
 
 async function cutoutSprite(src, dest, maxSide) {
-  console.log('cutout sprite', path.basename(src));
+  console.log("cutout sprite", path.basename(src));
   const image = await Jimp.read(src);
   floodKnockout(image, 56);
   punchPaper(image);
@@ -276,7 +331,12 @@ async function cutoutSprite(src, dest, maxSide) {
   }
   await image.writeAsync(dest);
   const stat = fs.statSync(dest);
-  console.log('  ->', path.relative(ROOT, dest), `${image.bitmap.width}x${image.bitmap.height}`, `${Math.round(stat.size / 1024)}kb`);
+  console.log(
+    "  ->",
+    path.relative(ROOT, dest),
+    `${image.bitmap.width}x${image.bitmap.height}`,
+    `${Math.round(stat.size / 1024)}kb`,
+  );
 }
 
 function knockFringe(image, maxDist) {
@@ -293,7 +353,12 @@ function knockFringe(image, maxDist) {
       const o = (y * w + x) * 4;
       if (data[o + 3] === 0) continue;
       if (distWhite(data[o], data[o + 1], data[o + 2]) > maxDist) continue;
-      if (isClear(x - 1, y) || isClear(x + 1, y) || isClear(x, y - 1) || isClear(x, y + 1)) {
+      if (
+        isClear(x - 1, y) ||
+        isClear(x + 1, y) ||
+        isClear(x, y - 1) ||
+        isClear(x, y + 1)
+      ) {
         next[o] = 0;
         next[o + 1] = 0;
         next[o + 2] = 0;
@@ -388,7 +453,7 @@ function fillGroundShadow(image) {
 }
 
 async function cutoutEat(src, dest, maxSide) {
-  console.log('cutout eat', path.basename(src));
+  console.log("cutout eat", path.basename(src));
   const image = await Jimp.read(src);
   fillGroundShadow(image);
   floodKnockout(image, 52);
@@ -403,64 +468,89 @@ async function cutoutEat(src, dest, maxSide) {
   }
   await image.writeAsync(dest);
   const stat = fs.statSync(dest);
-  console.log('  ->', path.relative(ROOT, dest), `${image.bitmap.width}x${image.bitmap.height}`, `${Math.round(stat.size / 1024)}kb`);
+  console.log(
+    "  ->",
+    path.relative(ROOT, dest),
+    `${image.bitmap.width}x${image.bitmap.height}`,
+    `${Math.round(stat.size / 1024)}kb`,
+  );
 }
 
 async function jpeg(src, dest, width, quality) {
-  console.log('jpeg', path.basename(src));
+  console.log("jpeg", path.basename(src));
   const image = await Jimp.read(src);
   image.resize(width, Jimp.AUTO);
   image.quality(quality);
   await image.writeAsync(dest);
   const stat = fs.statSync(dest);
-  console.log('  ->', path.relative(ROOT, dest), `${image.bitmap.width}x${image.bitmap.height}`, `${Math.round(stat.size / 1024)}kb`);
+  console.log(
+    "  ->",
+    path.relative(ROOT, dest),
+    `${image.bitmap.width}x${image.bitmap.height}`,
+    `${Math.round(stat.size / 1024)}kb`,
+  );
 }
 
 async function main() {
-  fs.mkdirSync(path.join(OUT, 'cat'), { recursive: true });
+  fs.mkdirSync(path.join(OUT, "cat"), { recursive: true });
 
-  await jpeg(path.join(SRC, '背景.png'), path.join(OUT, 'home-bg.jpg'), 750, 78);
-  await jpeg(path.join(SRC, '卡片', '背景.png'), path.join(OUT, 'card-bg.jpg'), 750, 78);
-
-  await cutout(path.join(SRC, '食盆.jpeg'), path.join(OUT, 'bowl-food.png'), 420);
-  await cutout(path.join(SRC, '食盆-空.jpeg'), path.join(OUT, 'bowl-food-empty.png'), 420);
-  await cutout(path.join(SRC, '水盆.jpeg'), path.join(OUT, 'bowl-water.png'), 420);
-  await cutout(path.join(SRC, '水盆-空.jpeg'), path.join(OUT, 'bowl-water-empty.png'), 420);
+  await jpeg(
+    path.join(SRC, "背景.png"),
+    path.join(OUT, "home-bg.png"),
+    750,
+    78,
+  );
+  await jpeg(
+    path.join(SRC, "卡片", "背景.png"),
+    path.join(OUT, "card-bg.png"),
+    750,
+    78,
+  );
 
   const cats = [
-    ['站立.png', 'stand.png'],
-    ['站立-有书包.jpeg', 'stand-bag.png'],
-    ['趴下-可选1.png', 'lie-1.png'],
-    ['趴下-可选2.jpeg', 'lie-2.png'],
-    ['趴下-有书包.jpeg', 'lie-bag.png'],
-    ['背对等待-可选1.jpeg', 'wait-1.png'],
-    ['背对等待-可选2.png', 'wait-2.png'],
+    ["站立.png", "stand.png"],
+    ["背对等待-可选1.jpeg", "wait-1.png"],
+    ["背对等待-可选2.png", "wait-2.png"],
   ];
   for (const [from, to] of cats) {
-    await cutout(path.join(SRC, '猫咪', from), path.join(OUT, 'cat', to), 400);
+    await cutout(path.join(SRC, "猫咪", from), path.join(OUT, "cat", to), 400);
   }
 
-  fs.mkdirSync(path.join(OUT, 'cat', 'sleep'), { recursive: true });
+  fs.mkdirSync(path.join(OUT, "cat", "sleep"), { recursive: true });
   const sleeps = [
-    ['睡觉.png', '001.png'],
-    ['睡觉-002.png', '002.png'],
-    ['睡觉-003.png', '003.png'],
+    ["睡觉.png", "001.png"],
+    ["睡觉-002.png", "002.png"],
+    ["睡觉-003.png", "003.png"],
   ];
   for (const [from, to] of sleeps) {
-    await cutout(path.join(SRC, '猫咪', from), path.join(OUT, 'cat', 'sleep', to), 400);
+    await cutout(
+      path.join(SRC, "猫咪", from),
+      path.join(OUT, "cat", "sleep", to),
+      400,
+    );
   }
-  await normalizeSleepFrames(path.join(OUT, 'cat', 'sleep'), 400);
+  await normalizeSleepFrames(path.join(OUT, "cat", "sleep"), 400);
 }
 
 async function run() {
-  if (process.argv[2] === 'sleep') {
-    await normalizeSleepFrames(path.join(OUT, 'cat', 'sleep'), 400);
+  if (process.argv[2] === "loops") {
+    const dirs = [
+      path.join(OUT, "cat", "wait"),
+      path.join(OUT, "cat-lanji", "wait"),
+    ];
+    for (let i = 0; i < dirs.length; i++) {
+      await normalizeLoopFrames(dirs[i], 640);
+    }
     return;
   }
-  if (process.argv[2] === 'eat') {
+  if (process.argv[2] === "sleep") {
+    await normalizeSleepFrames(path.join(OUT, "cat", "sleep"), 400);
+    return;
+  }
+  if (process.argv[2] === "eat") {
     await cutoutEat(
-      path.join(SRC, '猫咪', 'eat1.png'),
-      path.join(OUT, 'cat', 'eat.png'),
+      path.join(SRC, "猫咪", "eat1.png"),
+      path.join(OUT, "cat", "eat.png"),
       400,
     );
     return;

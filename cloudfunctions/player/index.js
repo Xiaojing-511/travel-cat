@@ -65,15 +65,21 @@ async function persistTick(userId, row, now, options, extraState) {
   if (typeof extraState === "function") {
     state = extraState(state, ticked);
   }
-  if (ticked.newCards && ticked.newCards.length) {
-    await cards.insertCards(db, userId, ticked.newCards, now);
-  }
+  state = await storeNewCards(userId, state, ticked.newCards, now);
   const player = await persist.savePlayer(db, userId, row.rev, state, now);
   return {
     ticked,
     state,
     player,
   };
+}
+
+async function storeNewCards(userId, state, newCards, now) {
+  const list = Array.isArray(newCards) ? newCards : [];
+  if (!list.length) return state;
+  const wanted = list.filter((card) => card && card.unread).length;
+  const added = await cards.insertCards(db, userId, list, now);
+  return game.adjustUnread(state, added - wanted);
 }
 
 async function ensureDb() {
@@ -94,7 +100,12 @@ async function login(event, now) {
   const user = await requireUser(now);
   const existing = await persist.getPlayer(db, user.userId);
   if (existing) {
-    const saved = await persistTick(user.userId, existing, now, {
+    let row = existing;
+    if (row.tutorialDone === false) {
+      const released = game.completeTutorial(game.normalize(row, now), now);
+      row = Object.assign({}, row, game.toPlayerDoc(released));
+    }
+    const saved = await persistTick(user.userId, row, now, {
       enteringApp: false,
     });
     return ok("login", {
@@ -112,9 +123,7 @@ async function login(event, now) {
       ...state,
       food: seed.food,
       water: seed.water,
-      hasUnreadCard: seed.hasUnreadCard,
-      lastCardTemplateId:
-        (seed.collectedCards[0] && seed.collectedCards[0].templateId) || "",
+      lastCardTemplateId: game.lastTemplateId(seed.collectedCards) || "",
       cardCount: seed.collectedCards.length,
     };
     if (state.food > 0 || state.water > 0) {
@@ -124,12 +133,13 @@ async function login(event, now) {
       await cards.insertCards(db, user.userId, seed.collectedCards, now);
     }
   }
+  if (user.isNew) state = game.holdForTutorial(state, now);
   const player = await persist.createPlayer(db, user.userId, state, now);
   return ok("login", {
     userId: user.userId,
     player,
     serverNow: now,
-    isNew: true,
+    isNew: !!user.isNew,
   });
 }
 
@@ -151,7 +161,21 @@ async function sync(event, now) {
 async function feed(_event, now) {
   const { userId, row } = await requirePlayer(now);
   const ticked = advance(row, now, { enteringApp: false });
-  const fed = game.feed(ticked.state, now);
+  if (game.feedBlockedByLeaves(ticked.state, now)) {
+    if (ticked.newCards.length) {
+      ticked.state = await storeNewCards(userId, ticked.state, ticked.newCards, now);
+    }
+    const player =
+      ticked.changed || ticked.newCards.length
+        ? await persist.savePlayer(db, userId, row.rev, ticked.state, now)
+        : persist.shapePlayer(row);
+    return fail("NEED_LEAVES", "need leaves", {
+      userId,
+      player,
+      serverNow: now,
+    });
+  }
+  let fed = game.feed(ticked.state, now);
   const changed = fed !== ticked.state || ticked.changed || ticked.newCards.length;
   if (!changed) {
     return fail("CANNOT_FEED", "cannot feed", {
@@ -161,7 +185,7 @@ async function feed(_event, now) {
     });
   }
   if (ticked.newCards.length) {
-    await cards.insertCards(db, userId, ticked.newCards, now);
+    fed = await storeNewCards(userId, fed, ticked.newCards, now);
   }
   const player = await persist.savePlayer(db, userId, row.rev, fed, now);
   return ok("feed", {
@@ -186,6 +210,72 @@ async function welcomeHome(_event, now) {
   });
 }
 
+function profileFail(code, userId, row, now) {
+  const extra = { userId, serverNow: now };
+  if (row) {
+    extra.player = persist.shapePlayer(
+      Object.assign({}, row, game.toPlayerDoc(game.normalize(row, now)), {
+        rev: row.rev,
+        _id: row._id || userId,
+      })
+    );
+  }
+  return fail(code, code, extra);
+}
+
+async function updateProfile(event, now) {
+  const user = await requireUser(now);
+  const userId = user.userId;
+  let row = await persist.getPlayer(db, userId);
+  if (!row) {
+    const created = game.holdForTutorial(game.createState(now), now);
+    const parsed = game.readProfilePatch(event, created);
+    if (!parsed.ok) return profileFail(parsed.code, userId, null, now);
+    const player = await persist.createPlayer(
+      db,
+      userId,
+      game.applyProfile(created, parsed.patch),
+      now
+    );
+    return ok("updateProfile", {
+      userId,
+      player,
+      serverNow: now,
+      completed: false,
+      changed: true,
+    });
+  }
+
+  const current = game.normalize(row, now);
+  const parsed = game.readProfilePatch(event, current);
+  if (!parsed.ok) return profileFail(parsed.code, userId, row, now);
+
+  let saved;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      saved = await persistTick(
+        userId,
+        row,
+        now,
+        { enteringApp: false },
+        (state) => game.applyProfile(state, parsed.patch)
+      );
+      break;
+    } catch (err) {
+      if (!err || err.code !== "REV_CONFLICT" || attempt === 2) throw err;
+      row = await persist.getPlayer(db, userId);
+      if (!row) throw err;
+    }
+  }
+  return ok("updateProfile", {
+    userId,
+    player: saved.player,
+    serverNow: now,
+    completed: saved.ticked.completed,
+    changed: true,
+  });
+}
+
 async function clearUnread(_event, now) {
   const { userId, row } = await requirePlayer(now);
   const saved = await persistTick(userId, row, now, { enteringApp: false }, (state) =>
@@ -196,6 +286,57 @@ async function clearUnread(_event, now) {
     player: saved.player,
     serverNow: now,
     completed: saved.ticked.completed,
+    changed: true,
+  });
+}
+
+async function harvestPlanter(event, now) {
+  const planterId = Number(event && event.planterId);
+  const { userId, row } = await requirePlayer(now);
+  const storedPlanters = Array.isArray(row.planters) ? row.planters : [];
+  const seenLeaves = event && event.seenLeaves;
+  let didHarvest = false;
+  const saved = await persistTick(
+    userId,
+    row,
+    now,
+    { enteringApp: false },
+    (state) => {
+      const picked = game.harvestPlanter(
+        { ...state, planters: storedPlanters },
+        planterId,
+        now,
+        seenLeaves
+      );
+      if (!picked) return state;
+      didHarvest = true;
+      return game.commitHarvest(state, picked, planterId, now);
+    }
+  );
+  if (!didHarvest) {
+    return fail("CANNOT_HARVEST", "cannot harvest", {
+      userId,
+      player: saved.player,
+      serverNow: now,
+    });
+  }
+  return ok("harvestPlanter", {
+    userId,
+    player: saved.player,
+    serverNow: now,
+    completed: saved.ticked.completed,
+    changed: true,
+  });
+}
+
+async function completeTutorial(_event, now) {
+  const { userId, row } = await requirePlayer(now);
+  const next = game.completeTutorial(game.normalize(row, now), now);
+  const player = await persist.savePlayer(db, userId, row.rev, next, now);
+  return ok("completeTutorial", {
+    userId,
+    player,
+    serverNow: now,
     changed: true,
   });
 }
@@ -214,17 +355,47 @@ async function hide(_event, now) {
   });
 }
 
+async function readCard(event, now) {
+  const { userId, row } = await requirePlayer(now);
+  const cardId = event && event.cardId;
+  const status = await cards.markRead(db, userId, cardId);
+  if (status === "missing") return fail("NOT_FOUND", "card not found");
+  try {
+    const saved = await persistTick(
+      userId,
+      row,
+      now,
+      { enteringApp: false },
+      (state) => (status === "updated" ? game.adjustUnread(state, -1) : state)
+    );
+    return ok("readCard", {
+      userId,
+      player: saved.player,
+      serverNow: now,
+      completed: saved.ticked.completed,
+      changed: true,
+    });
+  } catch (err) {
+    if (status === "updated") {
+      const id = String(cardId || "");
+      await db.collection("cards").doc(id).update({ data: { unread: true } });
+    }
+    throw err;
+  }
+}
+
 async function listCards(event, now) {
-  const { userId } = await requirePlayer(now);
+  const { userId, row } = await requirePlayer(now);
   const listed = await cards.listCards(
     db,
     userId,
     event && event.limit,
     event && event.cursor
   );
+  const breed = row && row.breed;
   return ok("listCards", {
     userId,
-    cards: listed.cards,
+    cards: (listed.cards || []).map((card) => game.presentCard(card, breed)),
     nextCursor: listed.nextCursor,
     serverNow: now,
   });
@@ -240,8 +411,12 @@ exports.main = async (event) => {
     if (action === "feed") return await feed(event, now);
     if (action === "welcomeHome") return await welcomeHome(event, now);
     if (action === "clearUnread") return await clearUnread(event, now);
+    if (action === "updateProfile") return await updateProfile(event, now);
+    if (action === "completeTutorial") return await completeTutorial(event, now);
+    if (action === "harvestPlanter") return await harvestPlanter(event, now);
     if (action === "hide") return await hide(event, now);
     if (action === "listCards") return await listCards(event, now);
+    if (action === "readCard") return await readCard(event, now);
     return fail("UNKNOWN_ACTION", "unknown action");
   } catch (err) {
     const code = (err && err.code) || "INTERNAL";

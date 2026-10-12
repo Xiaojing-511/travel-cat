@@ -1,8 +1,9 @@
 /**
- * 发版审核用的示例旅行记忆。
+ * 发版审核用的示例小咪手记。
  * 相册还没有真实明信片时展示，方便审核员点开列表和详情。
  * 用户第一次收到真实明信片后，这些示例不再出现。
  */
+const game = require("../utils/game.js");
 const TRIPS = require("./trips.js");
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -45,8 +46,7 @@ function buildReviewCards(now) {
       journaledAt,
     });
   }
-  cards.sort((a, b) => b.collectedAt - a.collectedAt);
-  return cards;
+  return game.sortCardsByListDate(cards);
 }
 
 function withReviewFallback(cards, now) {

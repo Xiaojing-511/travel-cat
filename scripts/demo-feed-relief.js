@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 场景：空碗超过 3 小时后玩家添粮。
- * 旅行中不会触发；其他状态保持 5 秒，再随机切到吃饭/喝水（扣 5g 或 10g）。
+ * 旅行中不会触发；其他状态保持 5 秒，再随机切到吃饭/喝水（5g 或 10g 在这段时间里逐克扣）。
  *
  * 用法：
  *   node scripts/demo-feed-relief.js
@@ -45,6 +45,7 @@ state = {
   ...state,
   food: 0,
   water: 0,
+  leafCount: game.FEED_LEAF_COST,
   emptySince: now - game.EMPTY_HUNGRY_MS - 60 * 1000,
 };
 
@@ -73,7 +74,7 @@ if (held.state.activity !== activity) {
 game.setRandom(() => 0);
 const done = game.tick(state, now + game.RELIEF_MEAL_DELAY_MS);
 screen("5 秒之后（演示强制吃饭 5g）", done.state, now + game.RELIEF_MEAL_DELAY_MS, {
-  note: "真机里吃饭/喝水、5g/10g 都是随机的。",
+  note: "刚开始吃，碗还没扣完。计划消耗 5g，会在这次吃饭期间逐克减少。",
 });
 game.setRandom();
 

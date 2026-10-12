@@ -3,37 +3,56 @@
     <view class="loading-spinner"></view>
     <view class="loading-text">加载中</view>
   </view>
-  <view wx:elif="{{empty}}" class="empty">还没有旅行记忆。</view>
-
-  <view wx:else class="list">
-    <view
-      class="item"
-      wx:for="{{cards}}"
-      wx:key="id"
-      data-id="{{item.id}}"
-      bindtap="openCard"
-    >
-      <view class="item-photo">
-        <image
-          src="{{item.image}}"
-          mode="aspectFill"
-          data-id="{{item.id}}"
-          binderror="onImgError"
-        />
-      </view>
-      <view class="item-body">
-        <view class="item-top">
-          <view class="item-loc">{{item.location}}</view>
+  <block wx:else>
+    <view class="tabs">
+      <view
+        class="tab {{filter === 'all' ? 'tab-active' : ''}}"
+        data-filter="all"
+        bindtap="setFilter"
+      >全部</view>
+      <view
+        class="tab {{filter === 'photo' ? 'tab-active' : ''}}"
+        data-filter="photo"
+        bindtap="setFilter"
+      >仅写真</view>
+    </view>
+    <view wx:if="{{empty}}" class="empty">{{filter === 'photo' ? '还没有写真。' : '还没有小咪手记。'}}</view>
+    <view wx:else class="list">
+      <block wx:for="{{cards}}" wx:key="id">
+        <view wx:if="{{item.forgot}}" class="item-forgot">
+          <view class="forgot-label">{{item.forgotText}}</view>
           <view class="item-date">{{item.dateText}}</view>
         </view>
-        <view class="item-journal">{{item.journal}}</view>
-      </view>
+        <view
+          wx:else
+          class="item"
+          data-id="{{item.id}}"
+          bindtap="openCard"
+        >
+          <view class="item-photo">
+            <image
+              src="{{item.image}}"
+              mode="aspectFill"
+              data-id="{{item.id}}"
+              binderror="onImgError"
+            />
+            <view wx:if="{{item.unread}}" class="item-dot"></view>
+          </view>
+          <view class="item-body">
+            <view class="item-top">
+              <view class="item-loc">{{item.location}}</view>
+              <view class="item-date">{{item.dateText}}</view>
+            </view>
+            <view class="item-journal">{{item.journal}}</view>
+          </view>
+        </view>
+      </block>
     </view>
-  </view>
+  </block>
 
   <view wx:if="{{openCard}}" class="mask" catchtouchmove="preventMove" bindtap="closeCard">
     <view class="postcard" catchtap="preventMove">
-      <image class="postcard-bg" src="/images/card-bg.jpg" mode="aspectFill" />
+      <image class="postcard-bg" src="/images/card-bg.png" mode="aspectFill" />
       <view class="postcard-inner">
         <view class="date">{{openCard.detailDateText}}</view>
         <view class="location">定位：{{openCard.location}}</view>
